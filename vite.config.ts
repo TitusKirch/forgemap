@@ -7,7 +7,7 @@ const nodeBuiltins = new Set([
   ...builtinModules.map((m) => `node:${m}`)
 ]);
 
-const runtimeDeps = ['citty', 'c12', 'defu', 'pathe', 'consola'];
+const runtimeDeps = ['citty', 'c12', 'defu', 'pathe', 'consola', 'fuse.js'];
 
 export default defineConfig({
   build: {

@@ -26,6 +26,7 @@ That's it. Every repo lands at a predictable `<root>/<forge.dir>/<owner>/<repo>`
 
 - **🗂️ Predictable layout** — every clone goes to `<root>/<forge.dir>/<owner>/<repo>`, configured once.
 - **🚪 Flexible slug syntax** — `owner/repo`, `forge:owner/repo`, full HTTPS URLs, or SSH (`git@…:…`).
+- **🔍 Fuzzy search** — `forgemap search <term>` finds local repos by owner or repo name (powered by [Fuse.js](https://www.fusejs.io/)).
 - **🤖 Forge-aware** — uses `gh` for GitHub today; GitLab / Gitea / Codeberg adapters planned.
 - **🧰 Typed config** — `forgemap.config.ts` with `defineForgeMapConfig()` and walk-up discovery.
 - **🚀 Shell-friendly** — `forgemap path <slug>` is a pure resolver, perfect for `cd "$(…)"` aliases.
@@ -62,6 +63,14 @@ Add a shell alias to make the jump even shorter:
 ```bash
 fcd() { cd "$(forgemap path "$1")"; }
 fcd kirchDev/laravel-pbac
+```
+
+Don't remember the exact slug? Search across everything you've already cloned:
+
+```bash
+forgemap search forgemap        # → /…/comGithub/TitusKirch/forgemap
+forgemap search kirch           # → all kirchDev repos
+forgemap search foo | fzf       # interactive picker
 ```
 
 ## ⚙️ Configuration
