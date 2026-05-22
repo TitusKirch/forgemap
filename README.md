@@ -68,9 +68,18 @@ fcd kirchDev/laravel-pbac
 Don't remember the exact slug? Search across everything you've already cloned:
 
 ```bash
-forgemap search forgemap        # → /…/comGithub/TitusKirch/forgemap
-forgemap search kirch           # → all kirchDev repos
-forgemap search foo | fzf       # interactive picker
+forgemap search forgemap        # → tree of matches with clickable paths in a TTY
+forgemap search kirch --format path
+forgemap pick                   # interactive picker (consola prompt) over all repos
+forgemap pick kirch             # picker pre-filtered by a fuzzy query
+```
+
+Want a real `cd` without the `$(…)` dance? Source the shell function:
+
+```bash
+eval "$(forgemap shell-init)"   # zsh/bash — defines `fcd`
+fcd laravel                     # cd straight into kirchDev/laravel-pbac
+fcd                             # no arg → interactive picker
 ```
 
 ## ⚙️ Configuration
