@@ -44,7 +44,7 @@ async function runSearch(
       args: {
         query,
         config: join(dir, 'forgemap.config.ts'),
-        slug: false,
+        format: 'path',
         ...extra,
         _: [query]
       },
@@ -84,11 +84,18 @@ describe('searchCommand', () => {
     expect(lines).toContain(join(dir, 'comGithub', 'kirchDev', 'laravel-pbac'));
   });
 
-  it('prints slug instead of path with --slug', async () => {
-    const lines = await runSearch(dir, 'forgemap', { slug: true });
+  it('prints slug only with --format slug', async () => {
+    const lines = await runSearch(dir, 'forgemap', { format: 'slug' });
     expect(lines).toContain('TitusKirch/forgemap');
     expect(lines).toContain('kirchDev/forgemap-php');
     expect(lines.every((l) => !l.startsWith('/'))).toBe(true);
+  });
+
+  it('renders a colored table with --format pretty', async () => {
+    const lines = await runSearch(dir, 'forgemap', { format: 'pretty' });
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.some((l) => l.includes('TitusKirch/forgemap'))).toBe(true);
+    expect(lines.some((l) => l.includes('kirchDev/forgemap-php'))).toBe(true);
   });
 
   it('respects --limit', async () => {

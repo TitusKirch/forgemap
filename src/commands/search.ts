@@ -1,14 +1,31 @@
 import { defineCommand } from 'citty';
+import consola from 'consola';
 import Fuse from 'fuse.js';
 import { dirname } from 'pathe';
 import { loadForgeMapConfig } from '../config/load.ts';
-import { scanRepos, type ScannedRepo } from '../repos/scan.ts';
+import { type ScannedRepo, scanRepos } from '../repos/scan.ts';
+import { bold, cyan, dim, gray, isInteractive } from '../utils/color.ts';
+
+type Format = 'pretty' | 'path' | 'slug';
+
+function renderPretty(repos: ScannedRepo[]): string {
+  const tags = repos.map((r) => `${r.forgeName}:${r.slug}`);
+  const width = Math.max(...tags.map((t) => t.length));
+  return repos
+    .map((r, i) => {
+      const [forge, slug] = tags[i]!.split(':');
+      const tag = `${gray(`${forge}:`)}${bold(cyan(slug!))}`;
+      const padding = ' '.repeat(width - tags[i]!.length + 2);
+      return `${tag}${padding}${dim(r.localPath)}`;
+    })
+    .join('\n');
+}
 
 export const searchCommand = defineCommand({
   meta: {
     name: 'search',
     description:
-      'Fuzzy-search cloned repos by owner/repo and print matching paths'
+      'Fuzzy-search cloned repos by owner/repo and print matching repos'
   },
   args: {
     query: {
@@ -16,10 +33,10 @@ export const searchCommand = defineCommand({
       description: 'Search term (matched fuzzily against <owner>/<repo>)',
       required: true
     },
-    slug: {
-      type: 'boolean',
-      description: 'Print "<owner>/<repo>" instead of the full local path',
-      default: false
+    format: {
+      type: 'string',
+      description:
+        'Output format: pretty (default in TTY), path, or slug (default when piped)'
     },
     limit: {
       type: 'string',
@@ -46,10 +63,25 @@ export const searchCommand = defineCommand({
 
     const limit = args.limit ? Number.parseInt(args.limit, 10) : undefined;
     const results = fuse.search(args.query, limit ? { limit } : undefined);
+    const items = results.map((r) => r.item);
 
-    for (const { item } of results) {
+    const format: Format =
+      (args.format as Format | undefined) ??
+      (isInteractive ? 'pretty' : 'path');
+
+    if (items.length === 0) {
+      if (format === 'pretty') consola.info(`No matches for "${args.query}".`);
+      return;
+    }
+
+    if (format === 'pretty') {
+      process.stdout.write(`${renderPretty(items)}\n`);
+      return;
+    }
+
+    for (const item of items) {
       process.stdout.write(
-        `${args.slug ? (item as ScannedRepo).slug : (item as ScannedRepo).localPath}\n`
+        `${format === 'slug' ? item.slug : item.localPath}\n`
       );
     }
   }
