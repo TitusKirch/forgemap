@@ -42,6 +42,9 @@ pnpm add -g forgemap
 > [!IMPORTANT]
 > `forgemap clone` shells out to the [GitHub CLI](https://cli.github.com/) (`gh`). Install it once and run `gh auth login` so cloning works against private repos.
 
+> [!TIP]
+> Hacking on forgemap itself? See [CONTRIBUTING.md → Trying the CLI locally](CONTRIBUTING.md#trying-the-cli-locally) — covers `pnpm setup`, `pnpm link --global .` and the shell-wrapper source.
+
 ## 🚀 Quick start
 
 ```bash

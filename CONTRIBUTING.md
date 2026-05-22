@@ -29,6 +29,41 @@ cd forgemap
 pnpm install   # wires husky hooks
 ```
 
+### Trying the CLI locally
+
+To run your in-development build as the global `forgemap` command (so
+`forgemap cd …` from `shell-init` actually finds the binary):
+
+```bash
+# 1. Make sure pnpm's global bin is on PATH (one-time setup).
+#    pnpm setup writes the export to your shell rc.
+pnpm setup            # add --force if pnpm complains about an existing block
+source ~/.zshrc       # or open a new shell
+
+# 2. Build once, then link this repo as the global `forgemap`.
+pnpm build
+pnpm link --global .  # pnpm 11 requires the `.` — links the current dir
+
+# 3. Source the shell wrapper (per shell or via .zshrc).
+eval "$(forgemap shell-init)"          # zsh/bash
+# forgemap shell-init fish | source    # fish
+
+# 4. Verify.
+which forgemap         # → /root/.local/share/pnpm/forgemap (or similar)
+forgemap --help
+forgemap cd <slug>     # actually cds in this shell
+```
+
+> [!NOTE]
+> `pnpm link --global .` will reinstall `node_modules` from the lockfile.
+> That's expected — it's pnpm switching the install strategy when a
+> package is registered globally. Existing work isn't lost.
+
+Re-running `pnpm build` after a code change updates the binary
+in-place; no re-link needed.
+
+To unlink later: `pnpm uninstall -g forgemap`.
+
 ## Running the suite
 
 | Command          | What it does                              |
