@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { defineCommand } from 'citty';
 import consola from 'consola';
@@ -48,14 +47,22 @@ export const configInitCommand = defineCommand({
     const outDir = resolve(process.cwd(), args.out);
     const target = join(outDir, 'forgemap.config.ts');
 
-    if (existsSync(target) && !args.force) {
-      consola.error(`${target} already exists. Use --force to overwrite.`);
-      process.exitCode = 1;
-      return;
+    await mkdir(dirname(target), { recursive: true });
+
+    try {
+      await writeFile(target, TEMPLATE, {
+        encoding: 'utf8',
+        flag: args.force ? 'w' : 'wx'
+      });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+        consola.error(`${target} already exists. Use --force to overwrite.`);
+        process.exitCode = 1;
+        return;
+      }
+      throw error;
     }
 
-    await mkdir(dirname(target), { recursive: true });
-    await writeFile(target, TEMPLATE, 'utf8');
     consola.success(`Wrote ${target}`);
   }
 });

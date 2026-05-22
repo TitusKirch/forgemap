@@ -7,6 +7,7 @@
 [![npm Version](https://img.shields.io/npm/v/forgemap.svg?style=flat-square&color=4f46e5)](https://www.npmjs.com/package/forgemap)
 [![Downloads](https://img.shields.io/npm/dm/forgemap.svg?style=flat-square&color=4f46e5)](https://www.npmjs.com/package/forgemap)
 [![Tests](https://img.shields.io/github/actions/workflow/status/TitusKirch/forgemap/ci.yml?branch=main&style=flat-square&label=tests)](https://github.com/TitusKirch/forgemap/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/codecov/c/github/TitusKirch/forgemap?style=flat-square&color=10b981)](https://codecov.io/gh/TitusKirch/forgemap)
 [![Node Version](https://img.shields.io/node/v/forgemap.svg?style=flat-square&color=8993be)](https://www.npmjs.com/package/forgemap)
 [![License: MIT](https://img.shields.io/npm/l/forgemap.svg?style=flat-square&color=10b981)](LICENSE)
 
@@ -25,6 +26,7 @@ That's it. Every repo lands at a predictable `<root>/<forge.dir>/<owner>/<repo>`
 
 - **🗂️ Predictable layout** — every clone goes to `<root>/<forge.dir>/<owner>/<repo>`, configured once.
 - **🚪 Flexible slug syntax** — `owner/repo`, `forge:owner/repo`, full HTTPS URLs, or SSH (`git@…:…`).
+- **🔍 Fuzzy search** — `forgemap search <term>` finds local repos by owner or repo name (powered by [Fuse.js](https://www.fusejs.io/)).
 - **🤖 Forge-aware** — uses `gh` for GitHub today; GitLab / Gitea / Codeberg adapters planned.
 - **🧰 Typed config** — `forgemap.config.ts` with `defineForgeMapConfig()` and walk-up discovery.
 - **🚀 Shell-friendly** — `forgemap path <slug>` is a pure resolver, perfect for `cd "$(…)"` aliases.
@@ -61,6 +63,23 @@ Add a shell alias to make the jump even shorter:
 ```bash
 fcd() { cd "$(forgemap path "$1")"; }
 fcd kirchDev/laravel-pbac
+```
+
+Don't remember the exact slug? Search across everything you've already cloned:
+
+```bash
+forgemap search forgemap        # → tree of matches with clickable paths in a TTY
+forgemap search kirch --format path
+forgemap pick                   # interactive picker (consola prompt) over all repos
+forgemap pick kirch             # picker pre-filtered by a fuzzy query
+```
+
+Want a real `cd` without the `$(…)` dance? Source the shell function:
+
+```bash
+eval "$(forgemap shell-init)"   # zsh/bash — defines `fcd`
+fcd laravel                     # cd straight into kirchDev/laravel-pbac
+fcd                             # no arg → interactive picker
 ```
 
 ## ⚙️ Configuration
