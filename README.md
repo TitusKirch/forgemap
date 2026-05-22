@@ -65,22 +65,41 @@ fcd() { cd "$(forgemap path "$1")"; }
 fcd kirchDev/laravel-pbac
 ```
 
-Don't remember the exact slug? Search across everything you've already cloned:
+### Real `cd` via shell integration (recommended)
+
+Source the shell function once:
 
 ```bash
-forgemap search forgemap        # → tree of matches with clickable paths in a TTY
-forgemap search kirch --format path
-forgemap pick                   # interactive picker (consola prompt) over all repos
-forgemap pick kirch             # picker pre-filtered by a fuzzy query
+# zsh/bash — drop into ~/.zshrc or ~/.bashrc
+eval "$(forgemap shell-init)"
+
+# fish
+forgemap shell-init fish | source
 ```
 
-Want a real `cd` without the `$(…)` dance? Source the shell function:
+That defines `fcd`:
 
 ```bash
-eval "$(forgemap shell-init)"   # zsh/bash — defines `fcd`
-fcd laravel                     # cd straight into kirchDev/laravel-pbac
-fcd                             # no arg → interactive picker
+fcd laravel              # cd straight into kirchDev/laravel-pbac (single match)
+fcd kirch                # multiple matches → interactive picker
+fcd                      # no arg → picker over every cloned repo
 ```
+
+### Search and pick on demand
+
+```bash
+forgemap search forgemap            # pretty tree (one line per match)
+forgemap search forgemap | fzf      # pipe-friendly path output
+forgemap pick                       # interactive picker (consola prompt)
+forgemap pick kirch                 # picker pre-filtered by fuzzy query
+```
+
+> [!TIP]
+> In a TTY, `forgemap search --format pretty` wraps each path as an OSC 8
+> hyperlink. Cmd/Ctrl-clickable in iTerm2, WezTerm, Kitty, Windows
+> Terminal, and the VS Code terminal — others just show the visible
+> text. On WSL2, paths are translated to `\\wsl$\<distro>\…` so Windows
+> Explorer can follow the click.
 
 ## ⚙️ Configuration
 

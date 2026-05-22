@@ -5,6 +5,7 @@ import Fuse from 'fuse.js';
 import { dirname } from 'pathe';
 import { loadForgeMapConfig } from '../config/load.ts';
 import { type ScannedRepo, scanRepos } from '../repos/scan.ts';
+import { toFileUrl } from '../utils/wsl.ts';
 
 type Format = 'auto' | 'pretty' | 'path' | 'slug';
 
@@ -29,7 +30,7 @@ function renderTree(repos: ScannedRepo[]): string {
     Array.from(groups, ([forge, items]) => ({
       text: colors.bold(forge),
       children: items.map((r) => ({
-        text: `${colors.cyan(r.slug)}  ${osc8(`file://${r.localPath}`, colors.dim(r.localPath))}`
+        text: `${colors.cyan(r.slug)}  ${osc8(toFileUrl(r.localPath), colors.dim(r.localPath))}`
       }))
     }))
   );
