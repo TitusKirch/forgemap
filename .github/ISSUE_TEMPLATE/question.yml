@@ -1,0 +1,24 @@
+name: ❓ Question
+description: Ask a question about usage, configuration, or behavior
+labels: ['question', 'triage']
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried?
+      description: Configs, commands, docs you've already looked at.
+
+  - type: input
+    id: version
+    attributes:
+      label: forgemap version
+      placeholder: e.g. 0.1.0
+    validations:
+      required: true
