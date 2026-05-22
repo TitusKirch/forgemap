@@ -40,6 +40,10 @@
       "import": "./dist/config/define.mjs"
     }
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
@@ -54,7 +58,8 @@
     "check:fix": "pnpm lint:fix && pnpm format:fix",
     "taze": "taze",
     "taze:w": "taze -w",
-    "prepare": "husky"
+    "prepare": "husky",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
     "c12": "^3.0.0",
