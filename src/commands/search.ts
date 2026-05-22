@@ -1,24 +1,29 @@
 import { defineCommand } from 'citty';
 import consola from 'consola';
+import { colors, formatTree } from 'consola/utils';
 import Fuse from 'fuse.js';
 import { dirname } from 'pathe';
 import { loadForgeMapConfig } from '../config/load.ts';
 import { type ScannedRepo, scanRepos } from '../repos/scan.ts';
-import { bold, cyan, dim, gray, isInteractive } from '../utils/color.ts';
 
-type Format = 'pretty' | 'path' | 'slug';
+type Format = 'auto' | 'pretty' | 'path' | 'slug';
 
-function renderPretty(repos: ScannedRepo[]): string {
-  const tags = repos.map((r) => `${r.forgeName}:${r.slug}`);
-  const width = Math.max(...tags.map((t) => t.length));
-  return repos
-    .map((r, i) => {
-      const [forge, slug] = tags[i]!.split(':');
-      const tag = `${gray(`${forge}:`)}${bold(cyan(slug!))}`;
-      const padding = ' '.repeat(width - tags[i]!.length + 2);
-      return `${tag}${padding}${dim(r.localPath)}`;
-    })
-    .join('\n');
+function renderTree(repos: ScannedRepo[]): string {
+  const groups = new Map<string, ScannedRepo[]>();
+  for (const r of repos) {
+    const list = groups.get(r.forgeName);
+    if (list) list.push(r);
+    else groups.set(r.forgeName, [r]);
+  }
+
+  return formatTree(
+    Array.from(groups, ([forge, items]) => ({
+      text: colors.bold(forge),
+      children: items.map((r) => ({
+        text: `${colors.cyan(r.slug)}  ${colors.dim(r.localPath)}`
+      }))
+    }))
+  );
 }
 
 export const searchCommand = defineCommand({
@@ -36,7 +41,8 @@ export const searchCommand = defineCommand({
     format: {
       type: 'string',
       description:
-        'Output format: pretty (default in TTY), path, or slug (default when piped)'
+        'Output format: auto (default), pretty, path, or slug. auto picks pretty in a TTY, path when piped.',
+      default: 'auto'
     },
     limit: {
       type: 'string',
@@ -65,9 +71,21 @@ export const searchCommand = defineCommand({
     const results = fuse.search(args.query, limit ? { limit } : undefined);
     const items = results.map((r) => r.item);
 
-    const format: Format =
-      (args.format as Format | undefined) ??
-      (isInteractive ? 'pretty' : 'path');
+    const allowed: Format[] = ['auto', 'pretty', 'path', 'slug'];
+    if (!allowed.includes(args.format as Format)) {
+      consola.error(
+        `Invalid --format value "${args.format}". Allowed: ${allowed.join(', ')}.`
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const requested = args.format as Format;
+    const format: Exclude<Format, 'auto'> =
+      requested === 'auto'
+        ? process.stdout.isTTY
+          ? 'pretty'
+          : 'path'
+        : requested;
 
     if (items.length === 0) {
       if (format === 'pretty') consola.info(`No matches for "${args.query}".`);
@@ -75,7 +93,7 @@ export const searchCommand = defineCommand({
     }
 
     if (format === 'pretty') {
-      process.stdout.write(`${renderPretty(items)}\n`);
+      process.stdout.write(`${renderTree(items)}\n`);
       return;
     }
 
