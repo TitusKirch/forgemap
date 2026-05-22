@@ -94,12 +94,15 @@ forgemap pick                       # interactive picker (consola prompt)
 forgemap pick kirch                 # picker pre-filtered by fuzzy query
 ```
 
-> [!TIP]
-> In a TTY, `forgemap search --format pretty` wraps each path as an OSC 8
-> hyperlink. Cmd/Ctrl-clickable in iTerm2, WezTerm, Kitty, Windows
-> Terminal, and the VS Code terminal — others just show the visible
-> text. On WSL2, paths are translated to `\\wsl$\<distro>\…` so Windows
-> Explorer can follow the click.
+### Open the folder in the OS file manager
+
+```bash
+forgemap open kirchDev/laravel-pbac
+```
+
+- **WSL** → launches `explorer.exe` against `\\wsl$\<distro>\…`, Explorer opens the folder
+- **macOS** → `open <path>` (Finder)
+- **Linux** → `xdg-open <path>`
 
 ## ⚙️ Configuration
 

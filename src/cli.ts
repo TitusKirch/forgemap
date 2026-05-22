@@ -1,6 +1,7 @@
 import { defineCommand } from 'citty';
 import { cloneCommand } from './commands/clone.ts';
 import { configCommand } from './commands/config/index.ts';
+import { openCommand } from './commands/open.ts';
 import { pathCommand } from './commands/path.ts';
 import { pickCommand } from './commands/pick.ts';
 import { searchCommand } from './commands/search.ts';
@@ -15,6 +16,7 @@ export const rootCommand = defineCommand({
   subCommands: {
     clone: cloneCommand,
     path: pathCommand,
+    open: openCommand,
     search: searchCommand,
     pick: pickCommand,
     'shell-init': shellInitCommand,
