@@ -3,6 +3,16 @@
   "name": "forgemap",
   "version": "0.1.0",
   "description": "CLI that manages a local repo layout under ~/projects/<gitserver>/<org>/<repo>.",
+  "keywords": [
+    "cli",
+    "developer-tools",
+    "forge",
+    "gh",
+    "git",
+    "github",
+    "nodejs",
+    "repository-management"
+  ],
   "homepage": "https://github.com/TitusKirch/forgemap#readme",
   "bugs": {
     "url": "https://github.com/TitusKirch/forgemap/issues"
