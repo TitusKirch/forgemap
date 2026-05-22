@@ -2,7 +2,6 @@
   "$schema": "https://www.schemastore.org/package.json",
   "name": "forgemap",
   "version": "0.1.0",
-  "private": true,
   "description": "CLI that manages a local repo layout under ~/projects/<gitserver>/<org>/<repo>.",
   "homepage": "https://github.com/TitusKirch/forgemap#readme",
   "bugs": {
