@@ -67,7 +67,7 @@ fcd kirchDev/laravel-pbac
 
 ### Real `cd` via shell integration (recommended)
 
-Source the shell function once:
+Source the shell wrapper once:
 
 ```bash
 # zsh/bash — drop into ~/.zshrc or ~/.bashrc
@@ -77,13 +77,15 @@ eval "$(forgemap shell-init)"
 forgemap shell-init fish | source
 ```
 
-That defines `fcd`:
+After that, `forgemap cd <slug>` actually changes directory:
 
 ```bash
-fcd laravel              # cd straight into kirchDev/laravel-pbac (single match)
-fcd kirch                # multiple matches → interactive picker
-fcd                      # no arg → picker over every cloned repo
+forgemap cd laravel      # cd straight into kirchDev/laravel-pbac (single match)
+forgemap cd kirch        # multiple matches → interactive picker
+forgemap cd              # no arg → picker over every cloned repo
 ```
+
+All other `forgemap` subcommands pass through to the real binary unchanged.
 
 ### Search and pick on demand
 

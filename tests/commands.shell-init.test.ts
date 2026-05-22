@@ -37,25 +37,27 @@ describe('shellInitCommand', () => {
     process.exitCode = undefined;
   });
 
-  it('emits a zsh/bash function by default (from $SHELL)', async () => {
+  it('emits a zsh/bash wrapper that intercepts cd', async () => {
     process.env.SHELL = '/bin/zsh';
-    const out = await runShellInit({ name: 'fcd' });
-    expect(out).toContain('fcd() {');
-    expect(out).toContain('forgemap search');
-    expect(out).toContain('forgemap pick');
+    const out = await runShellInit({ name: 'forgemap' });
+    expect(out).toContain('forgemap() {');
+    expect(out).toContain('if [ "$1" = "cd" ]');
+    expect(out).toContain('command forgemap');
+    expect(out).toContain('builtin cd');
   });
 
   it('emits fish syntax when asked', async () => {
-    const out = await runShellInit({ shell: 'fish', name: 'fcd' });
-    expect(out).toContain('function fcd');
+    const out = await runShellInit({ shell: 'fish', name: 'forgemap' });
+    expect(out).toContain('function forgemap');
     expect(out).toContain('end');
-    expect(out).not.toContain('fcd() {');
+    expect(out).toContain('builtin cd');
+    expect(out).not.toContain('forgemap() {');
   });
 
-  it('honours --name', async () => {
-    const out = await runShellInit({ shell: 'bash', name: 'myrepo' });
-    expect(out).toContain('myrepo() {');
-    expect(out).not.toContain('fcd() {');
+  it('honours --name for a custom wrapper name', async () => {
+    const out = await runShellInit({ shell: 'bash', name: 'fm' });
+    expect(out).toContain('fm() {');
+    expect(out).not.toContain('forgemap() {');
   });
 
   it('rejects unsupported shells', async () => {

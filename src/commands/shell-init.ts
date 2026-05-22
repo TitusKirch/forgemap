@@ -12,62 +12,67 @@ function detectShell(): Shell {
   return 'zsh';
 }
 
-function renderPosix(fnName: string): string {
+function renderPosix(name: string): string {
   return `# forgemap shell integration — drop into your ~/.zshrc / ~/.bashrc:
 #   eval "$(forgemap shell-init)"
+#
+# Wraps the forgemap binary so that \`${name} cd <slug>\` actually changes
+# directory in this shell. All other subcommands fall through unchanged.
 
-${fnName}() {
-  if [ "$#" -eq 0 ]; then
+${name}() {
+  if [ "$1" = "cd" ]; then
+    shift
     local target
-    target=$(forgemap pick) || return $?
-    [ -n "$target" ] && cd "$target"
+    if [ "$#" -eq 0 ]; then
+      target=$(command forgemap pick) || return $?
+    else
+      local matches
+      matches=$(command forgemap search "$1" --format path)
+      local count
+      count=$(printf '%s' "$matches" | grep -c '^/' || true)
+      if [ "$count" = "1" ]; then
+        target="$matches"
+      elif [ "$count" = "0" ]; then
+        echo "forgemap cd: no match for $1" >&2
+        return 1
+      else
+        target=$(command forgemap pick "$1") || return $?
+      fi
+    fi
+    [ -n "$target" ] && builtin cd "$target"
     return
   fi
-  local matches
-  matches=$(forgemap search "$1" --format path)
-  if [ -z "$matches" ]; then
-    echo "forgemap: no match for $1" >&2
-    return 1
-  fi
-  local count
-  count=$(printf '%s\\n' "$matches" | wc -l | tr -d ' ')
-  if [ "$count" = "1" ]; then
-    cd "$matches"
-  else
-    local target
-    target=$(forgemap pick "$1") || return $?
-    [ -n "$target" ] && cd "$target"
-  fi
+  command forgemap "$@"
 }
 `;
 }
 
-function renderFish(fnName: string): string {
+function renderFish(name: string): string {
   return `# forgemap shell integration — drop into your ~/.config/fish/config.fish:
 #   forgemap shell-init fish | source
 
-function ${fnName}
-  if test (count $argv) -eq 0
-    set target (forgemap pick); or return $status
-    if test -n "$target"
-      cd "$target"
+function ${name} --description "forgemap with cd interception"
+  if test (count $argv) -ge 1 -a "$argv[1]" = "cd"
+    set --erase argv[1]
+    set target ""
+    if test (count $argv) -eq 0
+      set target (command forgemap pick); or return $status
+    else
+      set matches (command forgemap search $argv[1] --format path)
+      set count (count $matches)
+      if test $count -eq 1
+        set target $matches[1]
+      else if test $count -eq 0
+        echo "forgemap cd: no match for $argv[1]" >&2
+        return 1
+      else
+        set target (command forgemap pick $argv[1]); or return $status
+      end
     end
+    test -n "$target"; and builtin cd $target
     return
   end
-  set matches (forgemap search $argv[1] --format path)
-  if test -z "$matches"
-    echo "forgemap: no match for $argv[1]" >&2
-    return 1
-  end
-  set count (count $matches)
-  if test $count -eq 1
-    cd $matches[1]
-  else
-    set target (forgemap pick $argv[1]); or return $status
-    if test -n "$target"
-      cd "$target"
-    end
-  end
+  command forgemap $argv
 end
 `;
 }
@@ -76,7 +81,7 @@ export const shellInitCommand = defineCommand({
   meta: {
     name: 'shell-init',
     description:
-      'Print a shell function (fcd) that resolves and cd-s into a repo. Source it via `eval "$(forgemap shell-init)"`.'
+      'Print a shell wrapper that adds `forgemap cd <slug>` as a real cd. Source it via `eval "$(forgemap shell-init)"`.'
   },
   args: {
     shell: {
@@ -86,8 +91,8 @@ export const shellInitCommand = defineCommand({
     },
     name: {
       type: 'string',
-      description: 'Name of the generated shell function',
-      default: 'fcd'
+      description: 'Name of the generated wrapper function (default: forgemap)',
+      default: 'forgemap'
     }
   },
   async run({ args }) {
@@ -99,8 +104,8 @@ export const shellInitCommand = defineCommand({
       process.exitCode = 1;
       return;
     }
-    const fnName = args.name || 'fcd';
-    const out = requested === 'fish' ? renderFish(fnName) : renderPosix(fnName);
+    const name = args.name || 'forgemap';
+    const out = requested === 'fish' ? renderFish(name) : renderPosix(name);
     process.stdout.write(out);
   }
 });

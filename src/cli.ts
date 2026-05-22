@@ -1,4 +1,5 @@
 import { defineCommand } from 'citty';
+import { cdCommand } from './commands/cd.ts';
 import { cloneCommand } from './commands/clone.ts';
 import { configCommand } from './commands/config/index.ts';
 import { openCommand } from './commands/open.ts';
@@ -15,6 +16,7 @@ export const rootCommand = defineCommand({
   },
   subCommands: {
     clone: cloneCommand,
+    cd: cdCommand,
     path: pathCommand,
     open: openCommand,
     search: searchCommand,
