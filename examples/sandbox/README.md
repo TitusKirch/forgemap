@@ -26,6 +26,28 @@ examples/sandbox/
     └── team-data/etl
 ```
 
+## Make the CLI runnable
+
+Build once from the repo root, then either link globally so plain
+`forgemap` works …
+
+```bash
+pnpm build
+pnpm link --global       # → `forgemap` available everywhere
+```
+
+… or set a one-off alias for this shell:
+
+```bash
+alias forgemap='node /path/to/repo/dist/bin/forgemap.mjs'
+```
+
+Without either, invoke the built binary directly:
+
+```bash
+node ../../dist/bin/forgemap.mjs search forgemap
+```
+
 ## Try it
 
 From inside `examples/sandbox/` (so the walk-up config discovery picks
