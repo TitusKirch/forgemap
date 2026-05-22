@@ -13,37 +13,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publish-dev:
-    name: Publish prerelease to npm
-    # Skip release-please's own version-bump merges.
+  compute:
+    name: Compute prerelease version
+    # Skip release-please's own version-bump merges on main.
     if: >-
       ${{
-        !startsWith(github.event.head_commit.message, 'chore(main): release')
-        && !startsWith(github.event.head_commit.message, 'chore: release')
+        github.ref_name == 'dev'
+        || (
+          !startsWith(github.event.head_commit.message, 'chore(main): release')
+          && !startsWith(github.event.head_commit.message, 'chore: release')
+        )
       }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
-
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: 24
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm build
-
-      - name: Compute prerelease version
-        id: version
+      - id: version
         run: |
           if [ "${{ github.ref_name }}" = "main" ]; then
             TAG=dev-main
@@ -54,9 +42,17 @@ jobs:
           BASE=${BASE_VERSION%%-*}
           SHORT_SHA=${GITHUB_SHA::7}
           NEW_VERSION="${BASE}-${TAG}.${{ github.run_number }}-${SHORT_SHA}"
-          npm version --no-git-tag-version --allow-same-version "$NEW_VERSION"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Publish
-        run: pnpm publish --access public --provenance --no-git-checks --tag ${{ steps.version.outputs.tag }}
+  publish:
+    name: Publish prerelease
+    needs: compute
+    uses: ./.github/workflows/publish.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      ref: ${{ github.sha }}
+      dist-tag: ${{ needs.compute.outputs.tag }}
+      version: ${{ needs.compute.outputs.version }}
