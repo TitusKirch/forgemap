@@ -39,7 +39,7 @@ export const searchCommand = defineCommand({
 
     const fuse = new Fuse(repos, {
       keys: ['slug', 'owner', 'repo'],
-      threshold: 0.4,
+      threshold: 0.3,
       ignoreLocation: true,
       includeScore: true
     });
