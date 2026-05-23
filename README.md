@@ -41,12 +41,13 @@ npm install -g forgemap
 pnpm add -g forgemap
 ```
 
-> [!IMPORTANT]
-> `git` must be on `PATH` — every forgemap command path uses it. The
-> [GitHub CLI](https://cli.github.com/) (`gh`) is only required when at
-> least one `type: 'github'` forge is configured (it powers
-> `forgemap clone`'s GitHub branch). Run `forgemap validate` after
-> setup to see exactly what's needed for your config.
+**Requirements**
+
+- Node 24+
+- `git` on `PATH`
+- [`gh`](https://cli.github.com/) (GitHub CLI) — only when a `type: 'github'` forge is configured
+
+Run `forgemap validate` after setup for an exact rundown of what's needed for your config.
 
 > [!TIP]
 > Hacking on forgemap itself? See [CONTRIBUTING.md → Trying the CLI locally](CONTRIBUTING.md#trying-the-cli-locally) — covers `pnpm setup`, `pnpm link --global .` and the shell-wrapper source.
