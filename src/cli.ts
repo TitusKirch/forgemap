@@ -1,6 +1,7 @@
 import { defineCommand } from 'citty';
 import { cdCommand } from './commands/cd.ts';
 import { cloneCommand } from './commands/clone.ts';
+import { completionCommand } from './commands/completion.ts';
 import { configCommand } from './commands/config/index.ts';
 import { openCommand } from './commands/open.ts';
 import { pathCommand } from './commands/path.ts';
@@ -27,6 +28,7 @@ export const rootCommand = defineCommand({
     status: statusCommand,
     sync: syncCommand,
     validate: validateCommand,
+    completion: completionCommand,
     'shell-init': shellInitCommand,
     config: configCommand
   }
