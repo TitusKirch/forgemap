@@ -65,17 +65,30 @@ export const pickCommand = defineCommand({
       return;
     }
 
-    const choice = await consola.prompt('Select a repo', {
-      type: 'select',
-      options: candidates.map((r) => ({
-        label: `${colors.gray(`${r.forgeName}:`)}${r.slug}`,
-        value: r.localPath,
-        hint: r.localPath
-      }))
-    });
+    // The picker renders its TUI via stdout, but `$(forgemap pick)` captures
+    // stdout — so route the interactive UI to stderr and keep stdout clean for
+    // the chosen path only.
+    const realStdoutWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = process.stderr.write.bind(
+      process.stderr
+    ) as typeof process.stdout.write;
+
+    let choice: unknown;
+    try {
+      choice = await consola.prompt('Select a repo', {
+        type: 'select',
+        options: candidates.map((r) => ({
+          label: `${colors.gray(`${r.forgeName}:`)}${r.slug}`,
+          value: r.localPath,
+          hint: r.localPath
+        }))
+      });
+    } finally {
+      process.stdout.write = realStdoutWrite;
+    }
 
     if (typeof choice === 'string' && choice) {
-      process.stdout.write(`${choice}\n`);
+      realStdoutWrite(`${choice}\n`);
     }
   }
 });
