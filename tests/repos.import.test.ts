@@ -41,7 +41,9 @@ function fail(stderr = '') {
 beforeEach(() => {
   repos = {};
   ghResponses = {};
+  hasCommandMock.mockReset();
   hasCommandMock.mockResolvedValue(true);
+  execCaptureMock.mockReset();
   execCaptureMock.mockImplementation(
     async (cmd: string, args: string[], opts?: { cwd?: string }) => {
       const cwd = opts?.cwd ?? '';
@@ -284,11 +286,8 @@ describe('analyzeImport', () => {
     expect(
       result.reports[0]!.findings.some((f) => f.kind === 'remote-check-skipped')
     ).toBe(true);
-    expect(execCaptureMock).not.toHaveBeenCalledWith(
-      'gh',
-      expect.anything(),
-      expect.anything()
-    );
+    const ghCalls = execCaptureMock.mock.calls.filter((c) => c[0] === 'gh');
+    expect(ghCalls).toHaveLength(0);
   });
 
   it('reports remote-gone for a git forge when ls-remote fails', async () => {

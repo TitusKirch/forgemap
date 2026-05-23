@@ -151,12 +151,16 @@ describe('githubAdapter.checkRemotes (batch)', () => {
     ]);
     // Exactly one call — the GraphQL batch, no per-repo REST follow-ups.
     expect(mockedCapture).toHaveBeenCalledTimes(1);
-    expect(mockedCapture).toHaveBeenCalledWith('gh', [
-      'api',
-      'graphql',
-      '-f',
-      expect.stringContaining('repository(owner: "foo", name: "bar")')
-    ]);
+    expect(mockedCapture).toHaveBeenCalledWith(
+      'gh',
+      [
+        'api',
+        'graphql',
+        '-f',
+        expect.stringContaining('repository(owner: "foo", name: "bar")')
+      ],
+      expect.objectContaining({ timeoutMs: expect.any(Number) })
+    );
   });
 
   it('falls back to a redirect-following REST call for GraphQL nulls', async () => {

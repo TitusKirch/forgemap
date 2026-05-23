@@ -9,6 +9,7 @@ import type {
 
 const GRAPHQL_CHUNK = 100;
 const FALLBACK_CONCURRENCY = 8;
+const GH_TIMEOUT_MS = 20_000;
 
 /** Single-repo REST check. `gh api` follows the redirect a renamed/transferred
  *  repo issues, so the returned full_name reveals the canonical owner/repo. */
@@ -16,12 +17,14 @@ async function checkOne(
   owner: string,
   repo: string
 ): Promise<RemoteCheckResult> {
-  const result = await execCapture('gh', [
-    'api',
-    `repos/${owner}/${repo}`,
-    '--jq',
-    '.full_name'
-  ]);
+  const result = await execCapture(
+    'gh',
+    ['api', `repos/${owner}/${repo}`, '--jq', '.full_name'],
+    { timeoutMs: GH_TIMEOUT_MS }
+  );
+  if (result.timedOut) {
+    return { state: 'unknown', reason: 'gh api timed out' };
+  }
   if (result.code !== 0) {
     if (/404|not found/i.test(result.stderr)) return { state: 'gone' };
     return {
@@ -105,12 +108,11 @@ export const githubAdapter: ForgeAdapter = {
 
     for (let start = 0; start < inputs.length; start += GRAPHQL_CHUNK) {
       const chunk = inputs.slice(start, start + GRAPHQL_CHUNK);
-      const res = await execCapture('gh', [
-        'api',
-        'graphql',
-        '-f',
-        `query=${buildQuery(chunk)}`
-      ]);
+      const res = await execCapture(
+        'gh',
+        ['api', 'graphql', '-f', `query=${buildQuery(chunk)}`],
+        { timeoutMs: GH_TIMEOUT_MS }
+      );
       type GraphqlData = Record<string, { nameWithOwner?: string } | null>;
       let data: GraphqlData | null = null;
       try {

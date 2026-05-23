@@ -104,10 +104,11 @@ describe('gitAdapter.checkRemote', () => {
     expect(
       await gitAdapter.checkRemote!({ forge, owner: 'team', repo: 'api' })
     ).toEqual({ state: 'exists', canonical: { owner: 'team', repo: 'api' } });
-    expect(mockedCapture).toHaveBeenCalledWith('git', [
-      'ls-remote',
-      'git@gitlab.acme.com:team/api.git'
-    ]);
+    expect(mockedCapture).toHaveBeenCalledWith(
+      'git',
+      ['ls-remote', 'git@gitlab.acme.com:team/api.git'],
+      expect.objectContaining({ timeoutMs: expect.any(Number) })
+    );
   });
 
   it('prefers the supplied origin URL', async () => {
@@ -119,10 +120,11 @@ describe('gitAdapter.checkRemote', () => {
       repo: 'api',
       originUrl: 'https://gitlab.acme.com/team/api.git'
     });
-    expect(mockedCapture).toHaveBeenCalledWith('git', [
-      'ls-remote',
-      'https://gitlab.acme.com/team/api.git'
-    ]);
+    expect(mockedCapture).toHaveBeenCalledWith(
+      'git',
+      ['ls-remote', 'https://gitlab.acme.com/team/api.git'],
+      expect.objectContaining({ timeoutMs: expect.any(Number) })
+    );
   });
 
   it('returns gone when ls-remote fails', async () => {
@@ -135,5 +137,18 @@ describe('gitAdapter.checkRemote', () => {
     expect(
       await gitAdapter.checkRemote!({ forge, owner: 'team', repo: 'api' })
     ).toEqual({ state: 'gone' });
+  });
+
+  it('returns unknown (not gone) when ls-remote times out', async () => {
+    mockedHasCommand.mockResolvedValue(true);
+    mockedCapture.mockResolvedValue({
+      code: 143,
+      stdout: '',
+      stderr: '',
+      timedOut: true
+    });
+    expect(
+      await gitAdapter.checkRemote!({ forge, owner: 'team', repo: 'api' })
+    ).toEqual({ state: 'unknown', reason: 'ls-remote timed out' });
   });
 });
