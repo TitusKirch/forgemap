@@ -7,6 +7,7 @@ import { pathCommand } from './commands/path.ts';
 import { pickCommand } from './commands/pick.ts';
 import { searchCommand } from './commands/search.ts';
 import { shellInitCommand } from './commands/shell-init.ts';
+import { syncCommand } from './commands/sync.ts';
 import { validateCommand } from './commands/validate.ts';
 
 export const rootCommand = defineCommand({
@@ -22,6 +23,7 @@ export const rootCommand = defineCommand({
     open: openCommand,
     search: searchCommand,
     pick: pickCommand,
+    sync: syncCommand,
     validate: validateCommand,
     'shell-init': shellInitCommand,
     config: configCommand
