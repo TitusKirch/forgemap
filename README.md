@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🧰 forgemap
+# 🗺️ forgemap
 
 **One consistent local layout for every repo you clone — across every forge**
 
