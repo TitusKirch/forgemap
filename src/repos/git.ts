@@ -131,12 +131,19 @@ export async function setOriginUrl(
   return gitIn(localPath, ['remote', 'set-url', 'origin', url]);
 }
 
-/** Unix timestamp (seconds) of the most recent commit on any branch, or null
- *  when there are no commits. Drives the staleness check in `cleanup`. */
+/** Unix timestamp (seconds) of the most recent commit on a LOCAL branch, or
+ *  null when there are no commits. Excludes remote-tracking refs on purpose:
+ *  a recent `fetch` must not make a long-idle local checkout look fresh.
+ *  Drives the staleness check in `cleanup`. */
 export async function getLastCommitUnix(
   localPath: string
 ): Promise<number | null> {
-  const result = await gitIn(localPath, ['log', '--all', '-1', '--format=%ct']);
+  const result = await gitIn(localPath, [
+    'log',
+    '--branches',
+    '-1',
+    '--format=%ct'
+  ]);
   if (result.code !== 0) return null;
   const ts = Number.parseInt(result.stdout.trim(), 10);
   return Number.isFinite(ts) ? ts : null;

@@ -1,8 +1,9 @@
-import { rm } from 'node:fs/promises';
+import { rm, rmdir } from 'node:fs/promises';
 import { defineCommand } from 'citty';
 import consola from 'consola';
 import { colors } from 'consola/utils';
 import { dirname } from 'pathe';
+import { resolveRoot } from '../utils/path.ts';
 import { loadForgeMapConfig } from '../config/load.ts';
 import type { ForgeType } from '../config/schema.ts';
 import { getForgeAdapter } from '../forges/registry.ts';
@@ -285,14 +286,31 @@ export const cleanupCommand = defineCommand({
       return;
     }
 
+    const root = resolveRoot(loaded.config.root, configDir);
     for (const c of candidates) {
       await rm(c.repo.localPath, { recursive: true, force: true });
       await removeCachedRepo(
         { config: loaded.config, configDir },
         c.repo.localPath
       );
+      // Remove the now-empty owner (and server-dir) directories left behind,
+      // walking up but never past the configured root.
+      await pruneEmptyParents(dirname(c.repo.localPath), root);
       consola.success(`Deleted ${c.repo.localPath}`);
     }
     consola.success(`Removed ${candidates.length} repo(s).`);
   }
 });
+
+/** rmdir empty ancestor dirs up to (but not including) `root`. */
+async function pruneEmptyParents(start: string, root: string): Promise<void> {
+  let dir = start;
+  while (dir !== root && dir.startsWith(`${root}/`)) {
+    try {
+      await rmdir(dir); // fails (and we stop) if the dir is not empty
+    } catch {
+      return;
+    }
+    dir = dirname(dir);
+  }
+}

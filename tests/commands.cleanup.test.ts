@@ -102,10 +102,12 @@ describe('cleanupCommand', () => {
           if (args[0] === 'branch') return ok('main');
           if (args[0] === 'status') return ok(s?.dirty ? 'M file' : '');
           if (args[0] === 'rev-list') return ok('0\t0');
-          if (args[0] === 'log' && args.includes('--branches')) {
+          if (args[0] === 'log' && args.includes('--not')) {
+            // hasUnpushedCommits
             return ok(s?.unpushed ? 'deadbeef' : '');
           }
-          if (args[0] === 'log' && args.includes('--all')) {
+          if (args[0] === 'log' && args.includes('--branches')) {
+            // getLastCommitUnix
             const ts = Math.floor(Date.now() / 1000) - (s?.ageDays ?? 0) * DAY;
             return ok(String(ts));
           }
@@ -163,6 +165,8 @@ describe('cleanupCommand', () => {
     const { out } = await runCleanup(dir, { yes: true });
     expect(out).toContain('foo/old');
     expect(existsSync(local)).toBe(false);
+    // The now-empty owner directory is pruned too.
+    expect(existsSync(join(dir, 'comGithub', 'foo'))).toBe(false);
   });
 
   it('keeps a recently-updated repo', async () => {
