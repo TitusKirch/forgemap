@@ -1,11 +1,11 @@
-import { rm, rmdir } from 'node:fs/promises';
+import { readdir, rm, rmdir } from 'node:fs/promises';
 import { defineCommand } from 'citty';
 import consola from 'consola';
 import { colors } from 'consola/utils';
-import { dirname } from 'pathe';
+import { dirname, join } from 'pathe';
 import { resolveRoot } from '../utils/path.ts';
 import { loadForgeMapConfig } from '../config/load.ts';
-import type { ForgeType } from '../config/schema.ts';
+import type { ForgeMapConfig, ForgeType } from '../config/schema.ts';
 import { getForgeAdapter } from '../forges/registry.ts';
 import type { RemoteCheckInput, RemoteCheckResult } from '../forges/types.ts';
 import { removeCachedRepo, scanReposCached } from '../repos/cache.ts';
@@ -225,11 +225,6 @@ export const cleanupCommand = defineCommand({
       )
     ).filter((c): c is Candidate => c !== null);
 
-    if (stale.length === 0) {
-      consola.info(`No repo has been idle for ${days}+ days.`);
-      return;
-    }
-
     const includeDirty = Boolean(args['include-dirty']);
     const includeUnpushed = Boolean(args['include-unpushed']);
 
@@ -295,62 +290,122 @@ export const cleanupCommand = defineCommand({
       process.stdout.write('\n');
     }
 
-    if (candidates.length === 0) {
-      consola.info('Nothing safe to delete.');
-      return;
-    }
-
-    // Loud warning when --include flags put real work on the chopping block.
-    const losing = candidates.filter((c) => c.dirty || c.unpushed).length;
-    if (losing > 0) {
-      consola.warn(
-        `${losing} of these have uncommitted/unpushed work that will be permanently lost.`
-      );
-    }
-
-    if (args['dry-run']) {
-      consola.info('Dry run — nothing deleted.');
-      return;
-    }
-
-    let confirmed = args.yes;
-    if (!confirmed) {
-      const answer = await consola.prompt(
-        `Type "yes" to delete these ${candidates.length} repo(s) locally:`,
-        { type: 'text', cancel: 'null' }
-      );
-      confirmed = typeof answer === 'string' && answer.trim() === 'yes';
-    }
-    if (!confirmed) {
-      consola.info('Aborted — nothing deleted.');
-      return;
-    }
-
     const root = resolveRoot(loaded.config.root, configDir);
-    for (const c of candidates) {
-      await rm(c.repo.localPath, { recursive: true, force: true });
-      await removeCachedRepo(
-        { config: loaded.config, configDir },
-        c.repo.localPath
+
+    // Empty owner/server directories (e.g. left behind by earlier deletions)
+    // are tidied on every run — they hold no files, so this is non-destructive.
+    if (args['dry-run']) {
+      const empties = await findEmptyDirs(root, loaded.config);
+      if (empties.length > 0) {
+        process.stdout.write(
+          `${colors.dim(`${empties.length} empty folder(s) would be removed:`)}\n`
+        );
+        for (const e of empties) {
+          process.stdout.write(`  ${colors.dim(e)}\n`);
+        }
+        process.stdout.write('\n');
+      }
+      consola.info(
+        candidates.length > 0
+          ? 'Dry run — nothing deleted.'
+          : 'Nothing to delete.'
       );
-      // Remove the now-empty owner (and server-dir) directories left behind,
-      // walking up but never past the configured root.
-      await pruneEmptyParents(dirname(c.repo.localPath), root);
-      consola.success(`Deleted ${c.repo.localPath}`);
+      return;
     }
-    consola.success(`Removed ${candidates.length} repo(s).`);
+
+    if (candidates.length > 0) {
+      // Loud warning when --include flags put real work on the chopping block.
+      const losing = candidates.filter((c) => c.dirty || c.unpushed).length;
+      if (losing > 0) {
+        consola.warn(
+          `${losing} of these have uncommitted/unpushed work that will be permanently lost.`
+        );
+      }
+
+      let confirmed = args.yes;
+      if (!confirmed) {
+        const answer = await consola.prompt(
+          `Type "yes" to delete these ${candidates.length} repo(s) locally:`,
+          { type: 'text', cancel: 'null' }
+        );
+        confirmed = typeof answer === 'string' && answer.trim() === 'yes';
+      }
+      if (!confirmed) {
+        consola.info('Aborted — nothing deleted.');
+        return;
+      }
+
+      for (const c of candidates) {
+        await rm(c.repo.localPath, { recursive: true, force: true });
+        await removeCachedRepo(
+          { config: loaded.config, configDir },
+          c.repo.localPath
+        );
+        consola.success(`Deleted ${c.repo.localPath}`);
+      }
+      consola.success(`Removed ${candidates.length} repo(s).`);
+    }
+
+    // Sweep empty owner/server dirs (pre-existing + newly emptied by deletes).
+    const emptied = await pruneEmptyDirs(root, loaded.config);
+    if (emptied > 0) {
+      consola.success(`Removed ${emptied} empty folder(s).`);
+    } else if (candidates.length === 0) {
+      consola.info('Nothing to clean up.');
+    }
   }
 });
 
-/** rmdir empty ancestor dirs up to (but not including) `root`. */
-async function pruneEmptyParents(start: string, root: string): Promise<void> {
-  let dir = start;
-  while (dir !== root && dir.startsWith(`${root}/`)) {
-    try {
-      await rmdir(dir); // fails (and we stop) if the dir is not empty
-    } catch {
-      return;
-    }
-    dir = dirname(dir);
+async function safeReaddir(path: string): Promise<string[] | null> {
+  try {
+    return await readdir(path);
+  } catch {
+    return null;
   }
+}
+
+/** Empty owner directories (and a server directory that holds only such empty
+ *  owners) under the configured forge dirs. Detection only — no removal. */
+async function findEmptyDirs(
+  root: string,
+  config: ForgeMapConfig
+): Promise<string[]> {
+  const empties: string[] = [];
+  for (const forge of Object.values(config.forges)) {
+    const serverPath = join(root, forge.dir);
+    const owners = await safeReaddir(serverPath);
+    if (owners === null) continue;
+    let emptyCount = 0;
+    for (const owner of owners) {
+      const ownerPath = join(serverPath, owner);
+      const inner = await safeReaddir(ownerPath);
+      if (inner !== null && inner.length === 0) {
+        empties.push(ownerPath);
+        emptyCount++;
+      }
+    }
+    // The server dir itself goes if it is empty or holds only empty owners.
+    if (owners.length === 0 || emptyCount === owners.length) {
+      empties.push(serverPath);
+    }
+  }
+  return empties;
+}
+
+/** Remove the dirs from findEmptyDirs (owners before server dirs). */
+async function pruneEmptyDirs(
+  root: string,
+  config: ForgeMapConfig
+): Promise<number> {
+  const empties = await findEmptyDirs(root, config);
+  let removed = 0;
+  for (const dir of empties) {
+    try {
+      await rmdir(dir);
+      removed++;
+    } catch {
+      // Not actually empty (a file slipped in) — leave it.
+    }
+  }
+  return removed;
 }

@@ -259,6 +259,21 @@ describe('cleanupCommand', () => {
     expect(existsSync(local)).toBe(true);
   });
 
+  it('removes a pre-existing empty owner directory', async () => {
+    const empty = join(dir, 'comGithub', 'ghost-owner');
+    await mkdir(empty, { recursive: true });
+    await runCleanup(dir, { yes: true });
+    expect(existsSync(empty)).toBe(false);
+  });
+
+  it('lists but keeps empty dirs in --dry-run', async () => {
+    const empty = join(dir, 'comGithub', 'ghost-owner');
+    await mkdir(empty, { recursive: true });
+    const { out } = await runCleanup(dir, { 'dry-run': true });
+    expect(out).toContain('ghost-owner');
+    expect(existsSync(empty)).toBe(true);
+  });
+
   it('ignores a repo without an origin', async () => {
     const local = await makeRepo('foo', 'noremote', {
       isRepo: true,
