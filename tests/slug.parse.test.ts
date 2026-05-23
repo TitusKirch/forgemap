@@ -56,4 +56,14 @@ describe('parseSlug', () => {
   it('rejects garbage', () => {
     expect(() => parseSlug('not a slug')).toThrow(/Unrecognized/);
   });
+
+  it('rejects URLs without owner/repo path', () => {
+    expect(() => parseSlug('https://github.com/foo')).toThrow(
+      /must contain owner and repo/
+    );
+  });
+
+  it('rejects malformed http URLs', () => {
+    expect(() => parseSlug('https://')).toThrow(/Invalid URL|must contain/);
+  });
 });

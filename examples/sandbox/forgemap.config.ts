@@ -18,10 +18,12 @@ export default {
       host: 'github.com',
       dir: 'comGithub'
     },
-    work: {
-      type: 'gitlab',
+    vanilla: {
+      // Plain `git clone` against any host — no gh required.
+      type: 'git',
       host: 'gitlab.example.com',
-      dir: 'comGitlabExample'
+      dir: 'comGitlabExample',
+      protocol: 'ssh'
     }
   }
 };

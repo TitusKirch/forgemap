@@ -20,16 +20,18 @@ $ forgemap clone kirchDev/laravel-pbac
 ✔ Cloned kirchDev/laravel-pbac → ~/projects/comGithub/kirchDev/laravel-pbac
 ```
 
-That's it. Every repo lands at a predictable `<root>/<forge.dir>/<owner>/<repo>` path, and `forgemap path <slug>` gives you that path back for `cd "$(forgemap path …)"` from anywhere.
+That's it. Every repo lands at a predictable `<root>/<forge.dir>/<owner>/<repo>` path, and `forgemap cd <slug>` jumps into any of them from anywhere — exact slug, fuzzy match, or interactive picker.
 
 ## ✨ Features
 
 - **🗂️ Predictable layout** — every clone goes to `<root>/<forge.dir>/<owner>/<repo>`, configured once.
 - **🚪 Flexible slug syntax** — `owner/repo`, `forge:owner/repo`, full HTTPS URLs, or SSH (`git@…:…`).
 - **🔍 Fuzzy search** — `forgemap search <term>` finds local repos by owner or repo name (powered by [Fuse.js](https://www.fusejs.io/)).
-- **🤖 Forge-aware** — uses `gh` for GitHub today; GitLab / Gitea / Codeberg adapters planned.
+- **🤖 Forge-aware** — `type: 'github'` shells out to `gh`; `type: 'git'` uses plain `git clone` with no extra dependencies.
+- **🔁 Mass sync + status** — `forgemap sync` fetches every clone in parallel, `forgemap status` shows branch / dirty / ahead / behind per repo.
+- **🛡️ Preflight validate** — `forgemap validate` checks the config schema and required CLIs before you discover a problem mid-clone.
 - **🧰 Typed config** — `forgemap.config.ts` with `defineForgeMapConfig()` and walk-up discovery.
-- **🚀 Shell-friendly** — `forgemap path <slug>` is a pure resolver, perfect for `cd "$(…)"` aliases.
+- **🚀 Shell-friendly** — `forgemap cd <slug>` (via `shell-init`) actually changes directory.
 
 ## 📦 Installation
 
@@ -39,11 +41,15 @@ npm install -g forgemap
 pnpm add -g forgemap
 ```
 
-> [!IMPORTANT]
-> `forgemap clone` shells out to the [GitHub CLI](https://cli.github.com/) (`gh`). Install it once and run `gh auth login` so cloning works against private repos.
+**Requirements**
 
-> [!TIP]
-> Hacking on forgemap itself? See [CONTRIBUTING.md → Trying the CLI locally](CONTRIBUTING.md#trying-the-cli-locally) — covers `pnpm setup`, `pnpm link --global .` and the shell-wrapper source.
+- Node 24+
+- `git` on `PATH`
+- [`gh`](https://cli.github.com/) (GitHub CLI) — only when a `type: 'github'` forge is configured
+
+Run `forgemap validate` after setup for an exact rundown of what's needed for your config.
+
+Hacking on forgemap itself? See [CONTRIBUTING.md → Trying the CLI locally](CONTRIBUTING.md#trying-the-cli-locally) — covers `pnpm setup`, `pnpm link --global .` and the shell-wrapper source.
 
 ## 🚀 Quick start
 
@@ -52,43 +58,26 @@ pnpm add -g forgemap
 cd ~/projects
 forgemap config init
 
-# 2. Clone — any slug form works.
+# 2. Wire up the shell integration once — adds real `forgemap cd`.
+eval "$(forgemap shell-init)"            # zsh/bash, add to ~/.zshrc to persist
+# fish: forgemap shell-init fish | source
+
+# 3. Clone — any slug form works.
 forgemap clone kirchDev/laravel-pbac
 forgemap clone github:TitusKirch/forgemap
 forgemap clone https://github.com/foo/bar
 
-# 3. Jump into a repo from anywhere.
-cd "$(forgemap path kirchDev/laravel-pbac)"
+# 4. Jump into a repo from anywhere.
+forgemap cd kirchDev/laravel-pbac        # exact slug → direct cd
+forgemap cd laravel                      # fuzzy single match → direct cd
+forgemap cd kirch                        # multiple matches → interactive picker
+forgemap cd                              # no arg → picker over every clone
 ```
 
-Add a shell alias to make the jump even shorter:
-
-```bash
-fcd() { cd "$(forgemap path "$1")"; }
-fcd kirchDev/laravel-pbac
-```
-
-### Real `cd` via shell integration (recommended)
-
-Source the shell wrapper once:
-
-```bash
-# zsh/bash — drop into ~/.zshrc or ~/.bashrc
-eval "$(forgemap shell-init)"
-
-# fish
-forgemap shell-init fish | source
-```
-
-After that, `forgemap cd <slug>` actually changes directory:
-
-```bash
-forgemap cd laravel      # cd straight into kirchDev/laravel-pbac (single match)
-forgemap cd kirch        # multiple matches → interactive picker
-forgemap cd              # no arg → picker over every cloned repo
-```
-
-All other `forgemap` subcommands pass through to the real binary unchanged.
+`forgemap cd` resolves the slug, walks/picks across your cloned repos,
+and actually changes directory because the shell wrapper from
+`shell-init` intercepts it before the binary runs. Every other
+subcommand falls through to the real binary unchanged.
 
 ### Search and pick on demand
 
@@ -109,6 +98,26 @@ forgemap open kirchDev/laravel-pbac
 - **macOS** → `open <path>` (Finder)
 - **Linux** → `xdg-open <path>`
 
+### Mass operations across every clone
+
+```bash
+forgemap sync                        # git fetch --all --prune, 4 in parallel
+forgemap sync --pull                 # git pull --ff-only (skips dirty trees)
+forgemap sync --forge work --query api  # restrict scope
+
+forgemap status                      # tree: branch / dirty / ahead↑ / behind↓ / last commit
+forgemap status --format json        # structured for jq + scripts
+```
+
+### Preflight your config
+
+```bash
+forgemap validate                    # pretty checklist with ✓ / ! / ✗ per check
+forgemap validate --json | jq        # machine-readable for pre-commit hooks
+```
+
+Validates the schema, required CLI tools (`git` always, `gh` when a `type: 'github'` forge is configured), `gh auth status`, and that the configured root exists.
+
 ## ⚙️ Configuration
 
 `forgemap config init` writes a `forgemap.config.ts` like this:
@@ -121,24 +130,28 @@ export default defineForgeMapConfig({
   defaultForge: 'github',
   forges: {
     github: {
-      type: 'github',
+      type: 'github',          // uses `gh repo clone`
       host: 'github.com',
       dir: 'comGithub'
     },
     work: {
-      type: 'gitlab',
+      type: 'git',             // plain `git clone` — no gh needed
       host: 'gitlab.acme.com',
-      dir: 'comGitlabAcme'
+      dir: 'comGitlabAcme',
+      protocol: 'ssh'          // optional, ssh is the default
     }
   }
 });
 ```
 
-| Key            | What it controls                                                                                |
-| :------------- | :---------------------------------------------------------------------------------------------- |
-| `root`         | Base directory for all clones. Relative paths resolve against the config file's directory.      |
-| `defaultForge` | Forge alias used when a slug is just `owner/repo` (no host or forge prefix).                    |
-| `forges.<name>` | Map of forge aliases. Each entry has `type`, `host`, and `dir` (subdirectory under `root`).    |
+| Key                  | What it controls                                                                                          |
+| :------------------- | :-------------------------------------------------------------------------------------------------------- |
+| `root`               | Base directory for all clones. Relative paths resolve against the config file's directory.                |
+| `defaultForge`       | Forge alias used when a slug is just `owner/repo` (no host or forge prefix).                              |
+| `forges.<name>.type` | `'github'` (shells out to `gh`) or `'git'` (plain `git clone`). `gitlab` / `gitea` / `codeberg` reserved. |
+| `forges.<name>.host` | Hostname used to map full URLs and (for `git`) build the clone URL.                                       |
+| `forges.<name>.dir`  | Subdirectory under `root` where this forge's clones live.                                                 |
+| `forges.<name>.protocol` | `git`-type only. `'ssh'` (default) or `'https'`. Override per call with `--ssh` / `--https`.          |
 
 The config file is discovered by walking up from your current directory. Override with `--config <path>` or the `FORGEMAP_CONFIG` env var.
 
@@ -180,7 +193,10 @@ pnpm install
 pnpm test         # vitest
 pnpm typecheck    # tsc --noEmit
 pnpm check        # lint + format
+pnpm bench        # microbench scanRepos / cache hit / cache rebuild
 ```
+
+Tune the bench layout via env vars (`FORGEMAP_BENCH_FORGES`, `FORGEMAP_BENCH_OWNERS`, `FORGEMAP_BENCH_REPOS`, `FORGEMAP_BENCH_RUNS`).
 
 ## 🤝 Contributing
 

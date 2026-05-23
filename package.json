@@ -55,6 +55,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "bench": "node --experimental-strip-types bench/scan.ts",
     "check": "pnpm lint && pnpm format",
     "check:fix": "pnpm lint:fix && pnpm format:fix",
     "taze": "taze",
