@@ -42,25 +42,34 @@ function hasIssues(report: RepoReport): boolean {
 }
 
 function repoLine(report: RepoReport): string {
-  const slug = `${report.repo.owner}/${report.repo.repo}`;
   const symbol = severitySymbol(worstSeverity(report.findings));
+  const name = colors.cyan(report.repo.repo);
   const issues = report.findings.filter((f) => f.severity !== 'ok');
-  if (issues.length === 0) return `${symbol} ${colors.cyan(slug)}`;
+  if (issues.length === 0) return `${symbol} ${name}`;
   const summary = issues.map((f) => f.message).join('; ');
-  return `${symbol} ${colors.cyan(slug)}  ${colors.dim(summary)}`;
+  return `${symbol} ${name}  ${colors.dim(summary)}`;
 }
 
+// Three levels, like a path: serverDir → owner → repo.
 function renderReports(reports: RepoReport[]): string {
-  const groups = new Map<string, RepoReport[]>();
+  const byServer = new Map<string, Map<string, RepoReport[]>>();
   for (const report of reports) {
-    const list = groups.get(report.repo.serverDir);
+    let owners = byServer.get(report.repo.serverDir);
+    if (!owners) {
+      owners = new Map();
+      byServer.set(report.repo.serverDir, owners);
+    }
+    const list = owners.get(report.repo.owner);
     if (list) list.push(report);
-    else groups.set(report.repo.serverDir, [report]);
+    else owners.set(report.repo.owner, [report]);
   }
   return formatTree(
-    Array.from(groups, ([serverDir, items]) => ({
+    Array.from(byServer, ([serverDir, owners]) => ({
       text: colors.bold(serverDir),
-      children: items.map((report) => ({ text: repoLine(report) }))
+      children: Array.from(owners, ([owner, items]) => ({
+        text: owner,
+        children: items.map((report) => ({ text: repoLine(report) }))
+      }))
     }))
   );
 }
