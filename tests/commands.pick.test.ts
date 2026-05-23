@@ -1,7 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import consola from 'consola';
 import { pickCommand } from '../src/commands/pick.ts';
 
 const FIXTURE_CONFIG = `export default {
@@ -80,5 +81,29 @@ describe('pickCommand', () => {
     const { out, exit } = await runPick(dir, { query: 'foo' });
     expect(out).toBe('');
     expect(exit).toBe(1);
+  });
+
+  it('prints only the chosen path from the interactive picker', async () => {
+    await mkdir(join(dir, 'comGithub', 'foo', 'a'), { recursive: true });
+    const chosen = join(dir, 'comGithub', 'foo', 'b');
+    await mkdir(chosen, { recursive: true });
+
+    // Pretend we're interactive and let the prompt resolve to a choice.
+    const ttyDesc = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
+    Object.defineProperty(process.stdin, 'isTTY', {
+      configurable: true,
+      value: true
+    });
+    const promptSpy = vi.spyOn(consola, 'prompt').mockResolvedValue(chosen);
+    try {
+      const { out, exit } = await runPick(dir, { query: 'foo' });
+      expect(out).toBe(chosen); // stdout carries the path only
+      expect(exit).toBeUndefined();
+      expect(promptSpy).toHaveBeenCalledOnce();
+    } finally {
+      promptSpy.mockRestore();
+      if (ttyDesc) Object.defineProperty(process.stdin, 'isTTY', ttyDesc);
+      else delete (process.stdin as unknown as Record<string, unknown>).isTTY;
+    }
   });
 });
