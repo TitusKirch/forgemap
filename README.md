@@ -27,9 +27,11 @@ That's it. Every repo lands at a predictable `<root>/<forge.dir>/<owner>/<repo>`
 - **🗂️ Predictable layout** — every clone goes to `<root>/<forge.dir>/<owner>/<repo>`, configured once.
 - **🚪 Flexible slug syntax** — `owner/repo`, `forge:owner/repo`, full HTTPS URLs, or SSH (`git@…:…`).
 - **🔍 Fuzzy search** — `forgemap search <term>` finds local repos by owner or repo name (powered by [Fuse.js](https://www.fusejs.io/)).
-- **🤖 Forge-aware** — uses `gh` for GitHub today; GitLab / Gitea / Codeberg adapters planned.
+- **🤖 Forge-aware** — `type: 'github'` shells out to `gh`; `type: 'git'` uses plain `git clone` with no extra dependencies.
+- **🔁 Mass sync + status** — `forgemap sync` fetches every clone in parallel, `forgemap status` shows branch / dirty / ahead / behind per repo.
+- **🛡️ Preflight validate** — `forgemap validate` checks the config schema and required CLIs before you discover a problem mid-clone.
 - **🧰 Typed config** — `forgemap.config.ts` with `defineForgeMapConfig()` and walk-up discovery.
-- **🚀 Shell-friendly** — `forgemap path <slug>` is a pure resolver, perfect for `cd "$(…)"` aliases.
+- **🚀 Shell-friendly** — `forgemap cd <slug>` (via `shell-init`) actually changes directory.
 
 ## 📦 Installation
 
@@ -109,6 +111,26 @@ forgemap open kirchDev/laravel-pbac
 - **macOS** → `open <path>` (Finder)
 - **Linux** → `xdg-open <path>`
 
+### Mass operations across every clone
+
+```bash
+forgemap sync                        # git fetch --all --prune, 4 in parallel
+forgemap sync --pull                 # git pull --ff-only (skips dirty trees)
+forgemap sync --forge work --query api  # restrict scope
+
+forgemap status                      # tree: branch / dirty / ahead↑ / behind↓ / last commit
+forgemap status --format json        # structured for jq + scripts
+```
+
+### Preflight your config
+
+```bash
+forgemap validate                    # pretty checklist with ✓ / ! / ✗ per check
+forgemap validate --json | jq        # machine-readable for pre-commit hooks
+```
+
+Validates the schema, required CLI tools (`git` always, `gh` when a `type: 'github'` forge is configured), `gh auth status`, and that the configured root exists.
+
 ## ⚙️ Configuration
 
 `forgemap config init` writes a `forgemap.config.ts` like this:
@@ -121,24 +143,28 @@ export default defineForgeMapConfig({
   defaultForge: 'github',
   forges: {
     github: {
-      type: 'github',
+      type: 'github',          // uses `gh repo clone`
       host: 'github.com',
       dir: 'comGithub'
     },
     work: {
-      type: 'gitlab',
+      type: 'git',             // plain `git clone` — no gh needed
       host: 'gitlab.acme.com',
-      dir: 'comGitlabAcme'
+      dir: 'comGitlabAcme',
+      protocol: 'ssh'          // optional, ssh is the default
     }
   }
 });
 ```
 
-| Key            | What it controls                                                                                |
-| :------------- | :---------------------------------------------------------------------------------------------- |
-| `root`         | Base directory for all clones. Relative paths resolve against the config file's directory.      |
-| `defaultForge` | Forge alias used when a slug is just `owner/repo` (no host or forge prefix).                    |
-| `forges.<name>` | Map of forge aliases. Each entry has `type`, `host`, and `dir` (subdirectory under `root`).    |
+| Key                  | What it controls                                                                                          |
+| :------------------- | :-------------------------------------------------------------------------------------------------------- |
+| `root`               | Base directory for all clones. Relative paths resolve against the config file's directory.                |
+| `defaultForge`       | Forge alias used when a slug is just `owner/repo` (no host or forge prefix).                              |
+| `forges.<name>.type` | `'github'` (shells out to `gh`) or `'git'` (plain `git clone`). `gitlab` / `gitea` / `codeberg` reserved. |
+| `forges.<name>.host` | Hostname used to map full URLs and (for `git`) build the clone URL.                                       |
+| `forges.<name>.dir`  | Subdirectory under `root` where this forge's clones live.                                                 |
+| `forges.<name>.protocol` | `git`-type only. `'ssh'` (default) or `'https'`. Override per call with `--ssh` / `--https`.          |
 
 The config file is discovered by walking up from your current directory. Override with `--config <path>` or the `FORGEMAP_CONFIG` env var.
 

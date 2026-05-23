@@ -63,21 +63,30 @@ the local `forgemap.config.ts`):
 cd examples/sandbox
 
 forgemap config show
+forgemap validate                  # preflight: schema, git/gh on PATH, root exists
 
 forgemap path kirchDev/laravel-pbac
-forgemap path work:team-platform/api
+forgemap path vanilla:team-platform/api
 forgemap path https://github.com/vercel/next.js
 
-forgemap search forgemap          # matches both forgemap repos
-forgemap search kirch             # matches kirchDev/*
-forgemap search etl               # matches team-data/etl
+forgemap search forgemap           # matches both forgemap repos
+forgemap search kirch              # matches kirchDev/*
+forgemap search etl                # matches team-data/etl
 forgemap search team --format slug
 
+forgemap status                    # branch / dirty / ahead / behind / last commit
+forgemap status --format json      # machine-readable
+forgemap sync                      # git fetch in parallel; harmless on empty dirs
+
 # With shell-init sourced:
-forgemap cd laravel               # single match → cd straight in
-forgemap cd kirch                 # multiple → picker
-forgemap cd                       # no arg → picker over all repos
+forgemap cd laravel                # single match → cd straight in
+forgemap cd kirch                  # multiple → picker
+forgemap cd                        # no arg → picker over all repos
 forgemap open kirchDev/forgemap-php   # opens in OS file manager
+
+# git-type forge (vanilla) — these dirs are empty, but the URL builder works:
+forgemap clone vanilla:foo/bar               # default SSH per forge config
+forgemap clone --https vanilla:foo/bar       # override to HTTPS for this call
 ```
 
 ## Reset
