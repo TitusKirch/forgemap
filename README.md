@@ -193,7 +193,10 @@ pnpm install
 pnpm test         # vitest
 pnpm typecheck    # tsc --noEmit
 pnpm check        # lint + format
+pnpm bench        # microbench scanRepos / cache hit / cache rebuild
 ```
+
+Tune the bench layout via env vars (`FORGEMAP_BENCH_FORGES`, `FORGEMAP_BENCH_OWNERS`, `FORGEMAP_BENCH_REPOS`, `FORGEMAP_BENCH_RUNS`).
 
 ## 🤝 Contributing
 
