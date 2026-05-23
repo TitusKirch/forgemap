@@ -271,6 +271,9 @@ async function runFuse(scenario: Scenario): Promise<ScenarioResult> {
 }
 
 async function runInvalidation(scenario: Scenario): Promise<ScenarioResult> {
+  // Forces the verified path so the rebuild phase reflects what a
+  // user-side (out-of-band) clone would trigger. With the default TTL
+  // hot path the cache would happily serve stale data here.
   const phases: Record<string, number[]> = {
     cold: [],
     hit: [],
@@ -286,21 +289,30 @@ async function runInvalidation(scenario: Scenario): Promise<ScenarioResult> {
       const config = await seed(dir, scenario.layout);
 
       phases.cold!.push(
-        await time(() => scanReposCached({ config, configDir: dir }))
+        await time(() =>
+          scanReposCached({ config, configDir: dir, trustTtl: false })
+        )
       );
       phases.hit!.push(
-        await time(() => scanReposCached({ config, configDir: dir }))
+        await time(() =>
+          scanReposCached({ config, configDir: dir, trustTtl: false })
+        )
       );
 
-      // Simulate `forgemap clone newowner/newrepo` — adds a fresh owner+repo.
+      // Simulate an out-of-band clone — touches the FS without going
+      // through appendCachedRepo, so the fingerprint check must catch it.
       const newOwner = join(dir, 'dir0', `cyclenew${cycle}`, 'addedrepo');
       await mkdir(newOwner, { recursive: true });
 
       phases.rebuild!.push(
-        await time(() => scanReposCached({ config, configDir: dir }))
+        await time(() =>
+          scanReposCached({ config, configDir: dir, trustTtl: false })
+        )
       );
       phases['hit-after']!.push(
-        await time(() => scanReposCached({ config, configDir: dir }))
+        await time(() =>
+          scanReposCached({ config, configDir: dir, trustTtl: false })
+        )
       );
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -404,16 +416,19 @@ function interpret(results: ScenarioResult[]): void {
 
   console.log('Interpretation:');
   console.log(
-    `  • Best cache payoff: ${best.name} (${deltaPct(best.phases[0]!.median, best.phases[1]!.median).toFixed(0)}%). Worst: ${worst.name} (${deltaPct(worst.phases[0]!.median, worst.phases[1]!.median).toFixed(0)}%).`
+    `  • Hit speedup ranges from ${deltaPct(worst.phases[0]!.median, worst.phases[1]!.median).toFixed(0)}% (${worst.name}) to ${deltaPct(best.phases[0]!.median, best.phases[1]!.median).toFixed(0)}% (${best.name}).`
   );
   console.log(
-    `  • The cache pays off once the cold scan exceeds ~10 ms — at smaller sizes the JSON round-trip and fingerprint walk drown the savings.`
+    `  • Hits are dominated by JSON parse, not fingerprint walks: the TTL fast-path skips stats entirely until FORGEMAP_CACHE_TTL_MS elapses.`
   );
   console.log(
-    `  • Enterprise (≈5 000 repos) sees ${deltaPct(enterprise.phases[0]!.median, enterprise.phases[1]!.median).toFixed(0)}% — that's where the cache stops being decorative.`
+    `  • Enterprise (≈5 000 repos): cold ${enterprise.phases[0]!.median.toFixed(1)} ms → hit ${enterprise.phases[1]!.median.toFixed(1)} ms (${deltaPct(enterprise.phases[0]!.median, enterprise.phases[1]!.median).toFixed(0)}% faster).`
   );
   console.log(
-    `  • Rebuild costs ~2× the cold scan; once per invalidation (e.g. after \`forgemap clone\`).`
+    `  • Rebuild (used when forgemap is bypassed e.g. by hand-cloning) walks the FS once and rewrites the cache — no worse than a cold scan plus a small write.`
+  );
+  console.log(
+    `  • forgemap's own \`clone\` calls appendCachedRepo so the cache stays warm without a rebuild.`
   );
   console.log();
 }

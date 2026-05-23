@@ -6,6 +6,7 @@ import { dirname } from 'pathe';
 import { loadForgeMapConfig } from '../config/load.ts';
 import type { GitProtocol } from '../config/schema.ts';
 import { getForgeAdapter } from '../forges/registry.ts';
+import { appendCachedRepo } from '../repos/cache.ts';
 import { parseSlug } from '../slug/parse.ts';
 import { resolveSlug } from '../slug/resolve.ts';
 
@@ -78,6 +79,20 @@ export const cloneCommand = defineCommand({
       dest: resolved.localPath,
       protocol
     });
+
+    // Keep the scan cache hot so the next `search`/`cd`/`status` doesn't
+    // pay for an invalidation walk just because we added one repo.
+    await appendCachedRepo(
+      { config: loaded.config, configDir },
+      {
+        forgeName: resolved.forgeName,
+        forge: resolved.forge,
+        owner: resolved.owner,
+        repo: resolved.repo,
+        localPath: resolved.localPath,
+        slug: `${resolved.owner}/${resolved.repo}`
+      }
+    );
 
     consola.success(
       `Cloned ${resolved.owner}/${resolved.repo} → ${resolved.localPath}`
