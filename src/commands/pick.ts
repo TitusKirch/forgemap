@@ -65,13 +65,31 @@ export const pickCommand = defineCommand({
       return;
     }
 
-    // The picker renders its TUI via stdout, but `$(forgemap pick)` captures
-    // stdout — so route the interactive UI to stderr and keep stdout clean for
+    // `$(forgemap pick)` captures stdout, so the interactive TUI must not go
+    // there. consola/clack writes the UI to stdout AND reads stdout.rows/columns
+    // for layout — but a captured stdout is a pipe (no rows → nothing renders).
+    // So for the duration of the prompt: route stdout writes to stderr (the real
+    // TTY) and borrow stderr's dimensions, then restore. stdout stays clean for
     // the chosen path only.
-    const realStdoutWrite = process.stdout.write.bind(process.stdout);
-    process.stdout.write = process.stderr.write.bind(
-      process.stderr
-    ) as typeof process.stdout.write;
+    const out = process.stdout;
+    const realWrite = out.write;
+    const saved = {
+      rows: Object.getOwnPropertyDescriptor(out, 'rows'),
+      columns: Object.getOwnPropertyDescriptor(out, 'columns'),
+      isTTY: Object.getOwnPropertyDescriptor(out, 'isTTY')
+    };
+    const fake = (key: 'rows' | 'columns' | 'isTTY', value: unknown) => {
+      Object.defineProperty(out, key, { configurable: true, value });
+    };
+    const restore = (key: 'rows' | 'columns' | 'isTTY') => {
+      if (saved[key]) Object.defineProperty(out, key, saved[key]!);
+      else delete (out as unknown as Record<string, unknown>)[key];
+    };
+
+    out.write = process.stderr.write.bind(process.stderr) as typeof out.write;
+    fake('rows', process.stderr.rows ?? 24);
+    fake('columns', process.stderr.columns ?? 80);
+    fake('isTTY', true);
 
     let choice: unknown;
     try {
@@ -84,11 +102,14 @@ export const pickCommand = defineCommand({
         }))
       });
     } finally {
-      process.stdout.write = realStdoutWrite;
+      out.write = realWrite;
+      restore('rows');
+      restore('columns');
+      restore('isTTY');
     }
 
     if (typeof choice === 'string' && choice) {
-      realStdoutWrite(`${choice}\n`);
+      realWrite.call(out, `${choice}\n`);
     }
   }
 });
