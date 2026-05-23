@@ -14,6 +14,22 @@ async function gitIn(cwd: string, args: string[]): Promise<CaptureResult> {
   return execCapture('git', args, { cwd });
 }
 
+/** Network git ops (fetch/pull) must never block: force non-interactive SSH
+ *  and a hard timeout so an unreachable or auth-prompting remote can't wedge
+ *  a whole `sync` run. */
+const NETWORK_TIMEOUT_MS = 30_000;
+
+async function gitNetwork(cwd: string, args: string[]): Promise<CaptureResult> {
+  return execCapture('git', args, {
+    cwd,
+    timeoutMs: NETWORK_TIMEOUT_MS,
+    env: {
+      GIT_TERMINAL_PROMPT: '0',
+      GIT_SSH_COMMAND: 'ssh -oBatchMode=yes -oConnectTimeout=5'
+    }
+  });
+}
+
 export async function getRepoStatus(localPath: string): Promise<RepoStatus> {
   const status: RepoStatus = {
     branch: 'HEAD',
@@ -58,11 +74,11 @@ export async function getRepoStatus(localPath: string): Promise<RepoStatus> {
 }
 
 export async function fetchRepo(localPath: string): Promise<CaptureResult> {
-  return gitIn(localPath, ['fetch', '--all', '--prune']);
+  return gitNetwork(localPath, ['fetch', '--all', '--prune']);
 }
 
 export async function pullRepo(localPath: string): Promise<CaptureResult> {
-  return gitIn(localPath, ['pull', '--ff-only']);
+  return gitNetwork(localPath, ['pull', '--ff-only']);
 }
 
 export async function isClean(localPath: string): Promise<boolean> {
