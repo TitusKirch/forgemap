@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import consola from 'consola';
 
 const { hasCommandMock, execCaptureMock } = vi.hoisted(() => ({
   hasCommandMock: vi.fn(),
@@ -25,6 +26,7 @@ interface RepoState {
   dirty?: boolean;
   unpushed?: boolean;
   ageDays?: number; // last commit this many days ago
+  lsRemote?: 'ok' | 'gone'; // git-forge ls-remote outcome
 }
 
 let repos: Record<string, RepoState> = {};
@@ -72,7 +74,10 @@ async function runCleanup(
 const CONFIG = `export default {
   root: '.',
   defaultForge: 'gh',
-  forges: { gh: { type: 'github', host: 'github.com', dir: 'comGithub' } }
+  forges: {
+    gh: { type: 'github', host: 'github.com', dir: 'comGithub' },
+    work: { type: 'git', host: 'git.example.com', dir: 'comGit' }
+  }
 };
 `;
 
@@ -112,6 +117,15 @@ describe('cleanupCommand', () => {
             return ok(String(ts));
           }
           if (args[0] === 'log') return ok('abc123|2 years ago');
+          if (args[0] === 'ls-remote') {
+            // Runs without a cwd; match the repo by its origin URL.
+            const match = Object.values(repos).find(
+              (r) => r.origin === args[1]
+            );
+            return match?.lsRemote === 'gone'
+              ? fail('ERROR: Repository not found')
+              : ok('');
+          }
         }
         if (cmd === 'gh' && args[0] === 'api' && args[1] === 'graphql') {
           const query = String(args[3] ?? '');
@@ -148,6 +162,14 @@ describe('cleanupCommand', () => {
     if (state.origin) {
       remoteExists[`${owner}/${repo}`] = true; // default: exists
     }
+    return local;
+  }
+
+  // A repo under the `work` (type: 'git') forge — remote checked via ls-remote.
+  async function makeGitRepo(owner: string, repo: string, state: RepoState) {
+    const local = join(dir, 'comGit', owner, repo);
+    await mkdir(local, { recursive: true });
+    repos[local] = state;
     return local;
   }
 
@@ -304,5 +326,58 @@ describe('cleanupCommand', () => {
     const { out } = await runCleanup(dir, { 'dry-run': true });
     expect(out).toContain('foo/old');
     expect(existsSync(local)).toBe(true);
+  });
+
+  it('checks a git-type forge via ls-remote', async () => {
+    const local = await makeGitRepo('team', 'api', {
+      isRepo: true,
+      origin: 'git@git.example.com:team/api.git',
+      ageDays: 400
+    });
+    await runCleanup(dir, { yes: true });
+    expect(existsSync(local)).toBe(false);
+  });
+
+  it('keeps a git repo whose remote is gone (ls-remote fails)', async () => {
+    const local = await makeGitRepo('team', 'dead', {
+      isRepo: true,
+      origin: 'git@git.example.com:team/dead.git',
+      ageDays: 400,
+      lsRemote: 'gone'
+    });
+    const { out } = await runCleanup(dir, { yes: true });
+    expect(existsSync(local)).toBe(true);
+    expect(out).toContain('remote no longer exists');
+  });
+
+  it('deletes after a typed "yes" at the interactive prompt', async () => {
+    const local = await makeRepo('foo', 'old', {
+      isRepo: true,
+      origin: 'git@github.com:foo/old.git',
+      ageDays: 400
+    });
+    const spy = vi.spyOn(consola, 'prompt').mockResolvedValue('yes');
+    try {
+      await runCleanup(dir, { yes: false });
+      expect(existsSync(local)).toBe(false);
+      expect(spy).toHaveBeenCalledOnce();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('aborts (keeps repos) when the prompt is not "yes"', async () => {
+    const local = await makeRepo('foo', 'old', {
+      isRepo: true,
+      origin: 'git@github.com:foo/old.git',
+      ageDays: 400
+    });
+    const spy = vi.spyOn(consola, 'prompt').mockResolvedValue('no');
+    try {
+      await runCleanup(dir, { yes: false });
+      expect(existsSync(local)).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

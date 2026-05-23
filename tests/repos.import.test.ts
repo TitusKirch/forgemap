@@ -309,4 +309,54 @@ describe('analyzeImport', () => {
       result.reports[0]!.findings.some((f) => f.kind === 'remote-gone')
     ).toBe(true);
   });
+
+  it('flags multiple remotes', async () => {
+    const local = await makeRepo('github.com', 'foo', 'bar');
+    repos[local] = {
+      isRepo: true,
+      origin: 'git@github.com:foo/bar.git',
+      remotes: ['origin', 'upstream']
+    };
+    const result = await analyzeImport({
+      path: dir,
+      type: 'forgemap',
+      remoteCheck: false
+    });
+    expect(
+      result.reports[0]!.findings.some((f) => f.kind === 'multiple-remotes')
+    ).toBe(true);
+  });
+
+  it('flags an unparseable origin URL', async () => {
+    const local = await makeRepo('github.com', 'foo', 'bar');
+    repos[local] = { isRepo: true, origin: 'gibberish-no-slash' };
+    const result = await analyzeImport({
+      path: dir,
+      type: 'forgemap',
+      remoteCheck: false
+    });
+    const finding = result.reports[0]!.findings.find(
+      (f) => f.kind === 'origin-mismatch'
+    );
+    expect(finding?.message).toMatch(/could not parse/i);
+  });
+
+  it('flags host-unmatched for the minority host under a server dir', async () => {
+    const a = await makeRepo('mix', 'o', 'gh1');
+    const b = await makeRepo('mix', 'o', 'gh2');
+    const c = await makeRepo('mix', 'o', 'gl1');
+    repos[a] = { isRepo: true, origin: 'git@github.com:o/gh1.git' };
+    repos[b] = { isRepo: true, origin: 'git@github.com:o/gh2.git' };
+    repos[c] = { isRepo: true, origin: 'git@gitlab.com:o/gl1.git' };
+
+    const result = await analyzeImport({
+      path: dir,
+      type: 'forgemap',
+      remoteCheck: false
+    });
+    // Dominant host github.com → the gitlab repo is flagged host-unmatched.
+    expect(result.derived.forges.mix!.host).toBe('github.com');
+    const gl = result.reports.find((r) => r.repo.repo === 'gl1');
+    expect(gl!.findings.some((f) => f.kind === 'host-unmatched')).toBe(true);
+  });
 });
