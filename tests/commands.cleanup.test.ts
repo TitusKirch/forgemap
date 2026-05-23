@@ -203,6 +203,62 @@ describe('cleanupCommand', () => {
     expect(existsSync(local)).toBe(true);
   });
 
+  it('--include-dirty deletes a dirty (but pushed) repo with an existing remote', async () => {
+    const local = await makeRepo('foo', 'dirtyold', {
+      isRepo: true,
+      origin: 'git@github.com:foo/dirtyold.git',
+      ageDays: 400,
+      dirty: true
+    });
+    await runCleanup(dir, { yes: true, 'include-dirty': true });
+    expect(existsSync(local)).toBe(false);
+  });
+
+  it('--include-dirty still keeps a repo that also has unpushed commits', async () => {
+    const local = await makeRepo('foo', 'both', {
+      isRepo: true,
+      origin: 'git@github.com:foo/both.git',
+      ageDays: 400,
+      dirty: true,
+      unpushed: true
+    });
+    const { out } = await runCleanup(dir, { yes: true, 'include-dirty': true });
+    expect(existsSync(local)).toBe(true);
+    expect(out).toContain('unpushed commits');
+  });
+
+  it('--include-dirty + --include-unpushed deletes a dirty, unpushed repo', async () => {
+    const local = await makeRepo('foo', 'both2', {
+      isRepo: true,
+      origin: 'git@github.com:foo/both2.git',
+      ageDays: 400,
+      dirty: true,
+      unpushed: true
+    });
+    await runCleanup(dir, {
+      yes: true,
+      'include-dirty': true,
+      'include-unpushed': true
+    });
+    expect(existsSync(local)).toBe(false);
+  });
+
+  it('never deletes a gone remote even with both --include flags', async () => {
+    const local = await makeRepo('foo', 'goneflags', {
+      isRepo: true,
+      origin: 'git@github.com:foo/goneflags.git',
+      ageDays: 400,
+      dirty: true
+    });
+    remoteExists['foo/goneflags'] = false;
+    await runCleanup(dir, {
+      yes: true,
+      'include-dirty': true,
+      'include-unpushed': true
+    });
+    expect(existsSync(local)).toBe(true);
+  });
+
   it('ignores a repo without an origin', async () => {
     const local = await makeRepo('foo', 'noremote', {
       isRepo: true,

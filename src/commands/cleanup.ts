@@ -25,8 +25,9 @@ const LOCAL_CONCURRENCY = 16;
 const REMOTE_CONCURRENCY = 10;
 
 /**
- * A stale repo that has an origin. `blocked` holds the reason it cannot be
- * deleted, or null while it is still a safe candidate. Carries the origin
+ * A stale repo that has an origin. `dirty` / `unpushed` record its local
+ * state; the run logic decides whether those block deletion (overridable via
+ * flags) while a missing remote is always a hard stop. Carries the origin
  * identity used for the remote-existence check.
  */
 interface Candidate {
@@ -36,15 +37,15 @@ interface Candidate {
   owner: string;
   name: string;
   lastCommitUnix: number;
-  blocked: string | null;
+  dirty: boolean;
+  unpushed: boolean;
 }
 
 /**
  * Local gates (no network). Returns null for repos we ignore entirely:
  * non-git dirs, repos without an origin, and repos that are NOT stale (their
- * newest commit is within the cutoff). A stale repo with an origin is always
- * returned, with `blocked` set when it is dirty or has unpushed work — so the
- * caller can explain why it was kept.
+ * newest local commit is within the cutoff). A stale repo with an origin is
+ * always returned with its dirty/unpushed state recorded.
  */
 async function evaluate(
   repo: ScannedRepo,
@@ -58,10 +59,8 @@ async function evaluate(
   if (lastCommitUnix === null || lastCommitUnix > cutoffUnix) return null;
 
   const status = await getRepoStatus(repo.localPath);
-  let blocked: string | null = null;
-  if (status.dirty) blocked = 'uncommitted changes';
-  else if (await hasUnpushedCommits(repo.localPath))
-    blocked = 'unpushed commits';
+  const dirty = status.dirty;
+  const unpushed = await hasUnpushedCommits(repo.localPath);
 
   let owner = repo.owner;
   let name = repo.repo;
@@ -73,7 +72,7 @@ async function evaluate(
     // Unparseable origin — fall back to the folder identity.
   }
 
-  return { repo, origin, owner, name, lastCommitUnix, blocked };
+  return { repo, origin, owner, name, lastCommitUnix, dirty, unpushed };
 }
 
 /** Check each candidate's remote, grouped by forge so GitHub can batch. */
@@ -175,6 +174,18 @@ export const cleanupCommand = defineCommand({
       description: 'Skip the interactive confirmation (deletes immediately)',
       default: false
     },
+    'include-dirty': {
+      type: 'boolean',
+      description:
+        'Also delete repos with uncommitted changes (those changes are lost)',
+      default: false
+    },
+    'include-unpushed': {
+      type: 'boolean',
+      description:
+        'Also delete repos with unpushed commits (those commits are lost)',
+      default: false
+    },
     'no-cache': {
       type: 'boolean',
       description: 'Skip the scanned-repos cache',
@@ -219,32 +230,53 @@ export const cleanupCommand = defineCommand({
       return;
     }
 
-    // Only the locally-safe ones (clean + pushed) need a remote check. Delete
-    // only what is provably backed up: the remote must still exist (or have
-    // moved — still backed up). gone/unreachable is never safe → kept.
-    const checkable = stale.filter((c) => c.blocked === null);
-    const remoteStates = await classifyRemotes(checkable);
-    for (const c of checkable) {
-      const state = remoteStates.get(c.repo.localPath)?.state;
-      if (state === 'exists' || state === 'moved') continue;
-      c.blocked =
-        state === 'gone' ? 'remote no longer exists' : 'remote unreachable';
-    }
+    const includeDirty = Boolean(args['include-dirty']);
+    const includeUnpushed = Boolean(args['include-unpushed']);
 
-    const candidates = stale
-      .filter((c) => c.blocked === null)
-      .sort((a, b) => a.lastCommitUnix - b.lastCommitUnix);
-    const kept = stale
-      .filter((c) => c.blocked !== null)
-      .sort((a, b) => a.lastCommitUnix - b.lastCommitUnix);
+    // Dirty / unpushed only block when the matching --include flag is off.
+    // A missing remote is ALWAYS a hard stop (never overridable). So only the
+    // locally-eligible repos need a remote check.
+    const localOk = (c: Candidate) =>
+      (!c.dirty || includeDirty) && (!c.unpushed || includeUnpushed);
+    const remoteStates = await classifyRemotes(stale.filter(localOk));
+
+    const candidates: Candidate[] = [];
+    const kept: Array<{ repo: Candidate; reason: string }> = [];
+    for (const c of stale) {
+      if (c.dirty && !includeDirty) {
+        kept.push({ repo: c, reason: 'uncommitted changes' });
+      } else if (c.unpushed && !includeUnpushed) {
+        kept.push({ repo: c, reason: 'unpushed commits' });
+      } else {
+        const state = remoteStates.get(c.repo.localPath)?.state;
+        if (state === 'exists' || state === 'moved') candidates.push(c);
+        else {
+          kept.push({
+            repo: c,
+            reason:
+              state === 'gone'
+                ? 'remote no longer exists'
+                : 'remote unreachable'
+          });
+        }
+      }
+    }
+    candidates.sort((a, b) => a.lastCommitUnix - b.lastCommitUnix);
+    kept.sort((a, b) => a.repo.lastCommitUnix - b.repo.lastCommitUnix);
 
     if (candidates.length > 0) {
       process.stdout.write(
-        `${colors.bold(`${candidates.length} repo(s) eligible for cleanup`)} ${colors.dim(`(clean, pushed, idle ${days}+ days, remote exists)`)}\n\n`
+        `${colors.bold(`${candidates.length} repo(s) eligible for cleanup`)} ${colors.dim(`(idle ${days}+ days, remote exists)`)}\n\n`
       );
       for (const c of candidates) {
+        const flags = [
+          c.dirty ? colors.red('dirty') : '',
+          c.unpushed ? colors.red('unpushed') : ''
+        ]
+          .filter(Boolean)
+          .join(' ');
         process.stdout.write(
-          `  ${colors.cyan(`${c.repo.forgeName}:${c.repo.slug}`)}  ${colors.dim(`${ageDays(c.lastCommitUnix)}d idle`)}  ${colors.dim(c.repo.localPath)}\n`
+          `  ${colors.cyan(`${c.repo.forgeName}:${c.repo.slug}`)}  ${colors.dim(`${ageDays(c.lastCommitUnix)}d idle`)}${flags ? `  ${flags}` : ''}  ${colors.dim(c.repo.localPath)}\n`
         );
       }
       process.stdout.write('\n');
@@ -255,9 +287,9 @@ export const cleanupCommand = defineCommand({
       process.stdout.write(
         `${colors.dim(`${kept.length} idle repo(s) kept (not safe to delete):`)}\n`
       );
-      for (const c of kept) {
+      for (const k of kept) {
         process.stdout.write(
-          `  ${colors.dim(`${c.repo.forgeName}:${c.repo.slug}  ${ageDays(c.lastCommitUnix)}d idle — ${c.blocked}`)}\n`
+          `  ${colors.dim(`${k.repo.repo.forgeName}:${k.repo.repo.slug}  ${ageDays(k.repo.lastCommitUnix)}d idle — ${k.reason}`)}\n`
         );
       }
       process.stdout.write('\n');
@@ -266,6 +298,14 @@ export const cleanupCommand = defineCommand({
     if (candidates.length === 0) {
       consola.info('Nothing safe to delete.');
       return;
+    }
+
+    // Loud warning when --include flags put real work on the chopping block.
+    const losing = candidates.filter((c) => c.dirty || c.unpushed).length;
+    if (losing > 0) {
+      consola.warn(
+        `${losing} of these have uncommitted/unpushed work that will be permanently lost.`
+      );
     }
 
     if (args['dry-run']) {
