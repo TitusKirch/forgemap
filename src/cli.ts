@@ -7,6 +7,7 @@ import { pathCommand } from './commands/path.ts';
 import { pickCommand } from './commands/pick.ts';
 import { searchCommand } from './commands/search.ts';
 import { shellInitCommand } from './commands/shell-init.ts';
+import { validateCommand } from './commands/validate.ts';
 
 export const rootCommand = defineCommand({
   meta: {
@@ -21,6 +22,7 @@ export const rootCommand = defineCommand({
     open: openCommand,
     search: searchCommand,
     pick: pickCommand,
+    validate: validateCommand,
     'shell-init': shellInitCommand,
     config: configCommand
   }
