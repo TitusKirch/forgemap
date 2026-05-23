@@ -67,9 +67,32 @@ export const gitAdapter: ForgeAdapter = {
         canonical: { owner: input.owner, repo: input.repo }
       };
     }
-    return { state: 'gone' };
+    // A failure is only `gone` when the host clearly says the repo is missing.
+    // Unreachable hosts, auth failures, and the generic SSH error stay
+    // `unknown` so we never falsely declare a repo deleted (the generic SSH
+    // message even contains "the repository exists").
+    if (isRepoMissing(result.stderr)) {
+      return { state: 'gone' };
+    }
+    const reason =
+      result.stderr
+        .split('\n')
+        .map((line) => line.trim())
+        .find(Boolean) ?? `git ls-remote exited with code ${result.code}`;
+    return { state: 'unknown', reason };
   }
 };
 
+/** True only for an unambiguous "this repository does not exist" signal. */
+function isRepoMissing(stderr: string): boolean {
+  const s = stderr.toLowerCase();
+  return (
+    /repository not found/.test(s) ||
+    /remote:.*not found/.test(s) ||
+    /\b404\b/.test(s) ||
+    /could not find repository/.test(s)
+  );
+}
+
 // Exported for testing.
-export const __test = { buildCloneUrl };
+export const __test = { buildCloneUrl, isRepoMissing };

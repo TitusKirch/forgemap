@@ -127,16 +127,49 @@ describe('gitAdapter.checkRemote', () => {
     );
   });
 
-  it('returns gone when ls-remote fails', async () => {
+  it('returns gone only on an explicit repository-not-found error', async () => {
     mockedHasCommand.mockResolvedValue(true);
     mockedCapture.mockResolvedValue({
       code: 128,
       stdout: '',
-      stderr: 'not found'
+      stderr: 'ERROR: Repository not found.\nfatal: Could not read from remote'
     });
     expect(
       await gitAdapter.checkRemote!({ forge, owner: 'team', repo: 'api' })
     ).toEqual({ state: 'gone' });
+  });
+
+  it('returns unknown (not gone) for an unreachable host', async () => {
+    mockedHasCommand.mockResolvedValue(true);
+    mockedCapture.mockResolvedValue({
+      code: 128,
+      stdout: '',
+      stderr:
+        'ssh: connect to host www.example.com port 22: Connection timed out\nfatal: Could not read from remote repository.'
+    });
+    const result = await gitAdapter.checkRemote!({
+      forge,
+      owner: 'team',
+      repo: 'api'
+    });
+    expect(result.state).toBe('unknown');
+    expect(result).toMatchObject({
+      reason: expect.stringContaining('Connection timed out')
+    });
+  });
+
+  it('treats the generic SSH access error as unknown, not gone', async () => {
+    mockedHasCommand.mockResolvedValue(true);
+    mockedCapture.mockResolvedValue({
+      code: 128,
+      stdout: '',
+      stderr:
+        'fatal: Could not read from remote repository.\nPlease make sure you have the correct access rights\nand the repository exists.'
+    });
+    expect(
+      (await gitAdapter.checkRemote!({ forge, owner: 'team', repo: 'api' }))
+        .state
+    ).toBe('unknown');
   });
 
   it('returns unknown (not gone) when ls-remote times out', async () => {

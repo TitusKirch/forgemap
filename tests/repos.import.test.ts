@@ -68,7 +68,9 @@ beforeEach(() => {
         if (args[0] === 'ls-remote') {
           // ls-remote runs without a cwd; match the repo by its origin URL.
           const match = Object.values(repos).find((s) => s.origin === args[1]);
-          return match?.lsRemote === 'gone' ? fail('not found') : ok('');
+          return match?.lsRemote === 'gone'
+            ? fail('ERROR: Repository not found')
+            : ok('');
         }
         if (args[0] === 'remote' && args[1] === 'set-url') return ok('');
       }
