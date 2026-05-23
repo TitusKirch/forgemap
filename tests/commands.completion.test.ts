@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { completionCommand } from '../src/commands/completion.ts';
 
@@ -67,5 +70,38 @@ describe('completionCommand', () => {
     const out = await runCompletion({ shell: 'powershell' });
     expect(out).toBe('');
     expect(process.exitCode).toBe(1);
+  });
+
+  it('includes the import and cleanup subcommands', async () => {
+    const out = await runCompletion({ shell: 'bash' });
+    expect(out).toContain('import');
+    expect(out).toContain('cleanup');
+  });
+
+  describe('--install', () => {
+    let home: string;
+    let originalHome: string | undefined;
+
+    beforeEach(async () => {
+      home = await mkdtemp(join(tmpdir(), 'forgemap-comp-home-'));
+      originalHome = process.env.HOME;
+      process.env.HOME = home;
+    });
+
+    afterEach(async () => {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+      await rm(home, { recursive: true, force: true });
+    });
+
+    it('appends a guarded completion loader, idempotently', async () => {
+      await runCompletion({ shell: 'zsh', install: true });
+      await runCompletion({ shell: 'zsh', install: true });
+      const rc = await readFile(join(home, '.zshrc'), 'utf8');
+      expect(rc).toContain('# >>> forgemap completion >>>');
+      expect(rc).toContain('eval "$(forgemap completion zsh)"');
+      const count = rc.split('# >>> forgemap completion >>>').length - 1;
+      expect(count).toBe(1);
+    });
   });
 });

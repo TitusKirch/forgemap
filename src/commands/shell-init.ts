@@ -1,54 +1,37 @@
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { defineCommand } from 'citty';
 import consola from 'consola';
-import { dirname, join } from 'pathe';
+import {
+  type Shell,
+  SUPPORTED_SHELLS as SUPPORTED,
+  detectShell,
+  installRcBlock
+} from '../utils/shell.ts';
 
-type Shell = 'zsh' | 'bash' | 'fish';
-
-const SUPPORTED: Shell[] = ['zsh', 'bash', 'fish'];
-
-const MARKER_START = '# >>> forgemap shell-init >>>';
-const MARKER_END = '# <<< forgemap shell-init <<<';
-
-function detectShell(): Shell {
-  const env = process.env.SHELL ?? '';
-  if (env.endsWith('/fish')) return 'fish';
-  if (env.endsWith('/bash')) return 'bash';
-  return 'zsh';
-}
-
-function rcFileFor(shell: Shell): string {
-  const home = homedir();
-  if (shell === 'fish') return join(home, '.config', 'fish', 'config.fish');
-  if (shell === 'bash') return join(home, '.bashrc');
-  return join(home, '.zshrc');
-}
-
-/** Append (idempotently) a marker-guarded block that loads the wrapper at
- *  shell startup, so the user only has to re-source their rc file. */
+/** Append (idempotently) a loader that, plus completion, sets up the shell so
+ *  the user only has to re-source their rc file. */
 async function install(shell: Shell, name: string): Promise<void> {
-  const rc = rcFileFor(shell);
-  let existing = '';
-  try {
-    existing = await readFile(rc, 'utf8');
-  } catch {
-    // rc file doesn't exist yet — we'll create it.
-  }
-  if (existing.includes(MARKER_START)) {
-    consola.info(`forgemap shell integration already present in ${rc}.`);
+  const nameArg = name && name !== 'forgemap' ? ` --name ${name}` : '';
+  const loaders =
+    shell === 'fish'
+      ? [
+          `forgemap shell-init fish${nameArg} | source`,
+          'forgemap completion fish | source'
+        ]
+      : [
+          `eval "$(forgemap shell-init ${shell}${nameArg})"`,
+          `eval "$(forgemap completion ${shell})"`
+        ];
+  const { status, rcFile } = await installRcBlock(shell, 'shell', loaders);
+  if (status === 'present') {
+    consola.info(`forgemap shell integration already present in ${rcFile}.`);
     return;
   }
-  const nameArg = name && name !== 'forgemap' ? ` --name ${name}` : '';
-  const loadLine =
-    shell === 'fish'
-      ? `forgemap shell-init fish${nameArg} | source`
-      : `eval "$(forgemap shell-init ${shell}${nameArg})"`;
-  const block = `\n${MARKER_START}\n${loadLine}\n${MARKER_END}\n`;
-  await mkdir(dirname(rc), { recursive: true });
-  await appendFile(rc, block, 'utf8');
-  consola.success(`Added forgemap shell integration to ${rc}.`);
-  consola.info(`Run \`source ${rc}\` or restart your shell to activate it.`);
+  consola.success(
+    `Added forgemap shell integration (cd + completion) to ${rcFile}.`
+  );
+  consola.info(
+    `Run \`source ${rcFile}\` or restart your shell to activate it.`
+  );
 }
 
 function renderPosix(name: string): string {

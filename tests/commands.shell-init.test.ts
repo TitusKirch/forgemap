@@ -85,19 +85,20 @@ describe('shellInitCommand', () => {
       await rm(home, { recursive: true, force: true });
     });
 
-    it('appends a guarded loader block to ~/.zshrc', async () => {
+    it('appends a guarded loader block (wrapper + completion) to ~/.zshrc', async () => {
       await runShellInit({ shell: 'zsh', name: 'forgemap', install: true });
       const rc = await readFile(join(home, '.zshrc'), 'utf8');
-      expect(rc).toContain('# >>> forgemap shell-init >>>');
+      expect(rc).toContain('# >>> forgemap shell >>>');
       expect(rc).toContain('eval "$(forgemap shell-init zsh)"');
-      expect(rc).toContain('# <<< forgemap shell-init <<<');
+      expect(rc).toContain('eval "$(forgemap completion zsh)"');
+      expect(rc).toContain('# <<< forgemap shell <<<');
     });
 
     it('is idempotent (no duplicate block on re-run)', async () => {
       await runShellInit({ shell: 'zsh', install: true });
       await runShellInit({ shell: 'zsh', install: true });
       const rc = await readFile(join(home, '.zshrc'), 'utf8');
-      const count = rc.split('# >>> forgemap shell-init >>>').length - 1;
+      const count = rc.split('# >>> forgemap shell >>>').length - 1;
       expect(count).toBe(1);
     });
 
@@ -108,6 +109,7 @@ describe('shellInitCommand', () => {
         'utf8'
       );
       expect(rc).toContain('forgemap shell-init fish | source');
+      expect(rc).toContain('forgemap completion fish | source');
     });
 
     it('includes --name when a custom name is used', async () => {
