@@ -1,6 +1,43 @@
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { loadConfig } from 'c12';
-import { dirname } from 'pathe';
+import { dirname, join, resolve } from 'pathe';
 import type { ForgeMapConfig, ForgeMapUserConfig } from './schema.ts';
+
+const CONFIG_BASENAMES = [
+  'forgemap.config.ts',
+  'forgemap.config.mts',
+  'forgemap.config.cts',
+  'forgemap.config.js',
+  'forgemap.config.mjs',
+  'forgemap.config.cjs',
+  'forgemap.config.json'
+];
+
+/** Walk up from `start` to the filesystem root looking for a forgemap config. */
+function findConfigUp(start: string): string | undefined {
+  let dir = resolve(start);
+  for (;;) {
+    for (const base of CONFIG_BASENAMES) {
+      const candidate = join(dir, base);
+      if (existsSync(candidate)) return candidate;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return undefined;
+    dir = parent;
+  }
+}
+
+/** Fallback config under $XDG_CONFIG_HOME/forgemap (or ~/.config/forgemap). */
+function findGlobalConfig(): string | undefined {
+  const base = process.env.XDG_CONFIG_HOME || join(homedir(), '.config');
+  const dir = join(base, 'forgemap');
+  for (const baseName of CONFIG_BASENAMES) {
+    const candidate = join(dir, baseName);
+    if (existsSync(candidate)) return candidate;
+  }
+  return undefined;
+}
 
 export interface LoadedConfig {
   config: ForgeMapConfig;
@@ -29,8 +66,14 @@ export async function loadForgeMapConfig(
   options: LoadOptions = {}
 ): Promise<LoadedConfig> {
   const envConfig = process.env.FORGEMAP_CONFIG;
-  const explicit = options.configFile ?? envConfig;
-  const cwd = explicit ? dirname(explicit) : (options.cwd ?? process.cwd());
+  const startDir = options.cwd ?? process.cwd();
+  // Resolution order: explicit flag → env → walk up from cwd → global fallback.
+  const explicit =
+    options.configFile ??
+    envConfig ??
+    findConfigUp(startDir) ??
+    findGlobalConfig();
+  const cwd = explicit ? dirname(explicit) : startDir;
 
   // No `defaults:` here — c12 would deep-merge them into the user
   // config (forges in particular), which surfaces the built-in github

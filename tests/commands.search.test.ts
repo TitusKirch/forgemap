@@ -94,8 +94,10 @@ describe('searchCommand', () => {
   it('renders a colored table with --format pretty', async () => {
     const lines = await runSearch(dir, 'forgemap', { format: 'pretty' });
     expect(lines.length).toBeGreaterThan(0);
-    expect(lines.some((l) => l.includes('TitusKirch/forgemap'))).toBe(true);
-    expect(lines.some((l) => l.includes('kirchDev/forgemap-php'))).toBe(true);
+    // Grouped forge → owner → repo: owners and repos render on separate lines.
+    expect(lines.some((l) => l.includes('TitusKirch'))).toBe(true);
+    expect(lines.some((l) => l.includes('kirchDev'))).toBe(true);
+    expect(lines.some((l) => l.includes('forgemap-php'))).toBe(true);
   });
 
   it('respects --limit', async () => {

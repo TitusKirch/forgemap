@@ -1,15 +1,42 @@
 import { defineCommand } from 'citty';
 import consola from 'consola';
+import {
+  type Shell,
+  SUPPORTED_SHELLS as SUPPORTED,
+  detectShell,
+  installRcBlock
+} from '../utils/shell.ts';
 
-type Shell = 'zsh' | 'bash' | 'fish';
-
-const SUPPORTED: Shell[] = ['zsh', 'bash', 'fish'];
-
-function detectShell(): Shell {
-  const env = process.env.SHELL ?? '';
-  if (env.endsWith('/fish')) return 'fish';
-  if (env.endsWith('/bash')) return 'bash';
-  return 'zsh';
+/** Append (idempotently) a loader that, plus completion, sets up the shell so
+ *  the user only has to re-source their rc file. */
+async function install(shell: Shell, name: string): Promise<void> {
+  const nameArg = name && name !== 'forgemap' ? ` --name ${name}` : '';
+  const loaders =
+    shell === 'fish'
+      ? [
+          `forgemap shell-init fish${nameArg} | source`,
+          'forgemap completion fish | source'
+        ]
+      : [
+          `eval "$(forgemap shell-init ${shell}${nameArg})"`,
+          `eval "$(forgemap completion ${shell})"`
+        ];
+  // 'shell-init' is the legacy label (before this block also loaded
+  // completion) — strip it so a re-install never leaves a duplicate.
+  const { status, rcFile } = await installRcBlock(shell, 'shell', loaders, [
+    'shell-init'
+  ]);
+  if (status === 'present') {
+    consola.info(`forgemap shell integration already present in ${rcFile}.`);
+    return;
+  }
+  const verb = status === 'updated' ? 'Updated' : 'Added';
+  consola.success(
+    `${verb} forgemap shell integration (cd + completion) in ${rcFile}.`
+  );
+  consola.info(
+    `Run \`source ${rcFile}\` or restart your shell to activate it.`
+  );
 }
 
 function renderPosix(name: string): string {
@@ -81,7 +108,7 @@ export const shellInitCommand = defineCommand({
   meta: {
     name: 'shell-init',
     description:
-      'Print a shell wrapper that adds `forgemap cd <slug>` as a real cd. Source it via `eval "$(forgemap shell-init)"`.'
+      'Print (or --install) a shell wrapper that adds `forgemap cd <slug>` as a real cd. Source it via `eval "$(forgemap shell-init)"`.'
   },
   args: {
     shell: {
@@ -93,6 +120,12 @@ export const shellInitCommand = defineCommand({
       type: 'string',
       description: 'Name of the generated wrapper function (default: forgemap)',
       default: 'forgemap'
+    },
+    install: {
+      type: 'boolean',
+      description:
+        "Append the loader to your shell's rc file (idempotent) instead of printing",
+      default: false
     }
   },
   async run({ args }) {
@@ -105,6 +138,10 @@ export const shellInitCommand = defineCommand({
       return;
     }
     const name = args.name || 'forgemap';
+    if (args.install) {
+      await install(requested, name);
+      return;
+    }
     const out = requested === 'fish' ? renderFish(name) : renderPosix(name);
     process.stdout.write(out);
   }

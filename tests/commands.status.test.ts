@@ -89,8 +89,10 @@ describe('statusCommand', () => {
     const { out, exit } = await runStatus(dir);
     expect(exit).toBeUndefined();
     expect(out).toContain('github');
-    expect(out).toContain('foo/a');
-    expect(out).toContain('team/api');
+    // Grouped forge → owner → repo, so owner and repo appear on separate lines.
+    expect(out).toContain('foo');
+    expect(out).toContain('team');
+    expect(out).toContain('api');
     expect(out).toContain('abc1234');
   });
 
@@ -119,8 +121,9 @@ describe('statusCommand', () => {
 
   it('--forge restricts the output', async () => {
     const { out } = await runStatus(dir, { forge: 'work' });
-    expect(out).toContain('team/api');
-    expect(out).not.toContain('foo/a');
+    expect(out).toContain('team');
+    expect(out).toContain('api');
+    expect(out).not.toContain('foo');
   });
 
   it('exits 1 for invalid --format', async () => {
