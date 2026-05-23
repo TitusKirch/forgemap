@@ -32,23 +32,30 @@ export async function loadForgeMapConfig(
   const explicit = options.configFile ?? envConfig;
   const cwd = explicit ? dirname(explicit) : (options.cwd ?? process.cwd());
 
+  // No `defaults:` here — c12 would deep-merge them into the user
+  // config (forges in particular), which surfaces the built-in github
+  // forge in every custom layout. We apply defaults below ourselves,
+  // only filling in missing top-level fields.
   const { config, configFile } = await loadConfig<ForgeMapUserConfig>({
     name: 'forgemap',
     cwd,
     configFile: explicit ? explicit : 'forgemap.config',
     rcFile: false,
     globalRc: false,
-    dotenv: false,
-    defaults: DEFAULT_CONFIG
+    dotenv: false
   });
 
+  // User-defined forges replace the defaults entirely — otherwise the
+  // built-in github fallback would pollute every custom config and
+  // commands like `validate` would demand `gh` even when no github
+  // forge is configured.
   const merged: ForgeMapConfig = {
     root: config.root ?? DEFAULT_CONFIG.root,
     defaultForge: config.defaultForge ?? DEFAULT_CONFIG.defaultForge,
-    forges: {
-      ...DEFAULT_CONFIG.forges,
-      ...config.forges
-    }
+    forges:
+      config.forges && Object.keys(config.forges).length > 0
+        ? config.forges
+        : DEFAULT_CONFIG.forges
   };
 
   return {

@@ -1,4 +1,6 @@
-export type ForgeType = 'github' | 'gitlab' | 'gitea' | 'codeberg';
+export type ForgeType = 'github' | 'gitlab' | 'gitea' | 'codeberg' | 'git';
+
+export type GitProtocol = 'ssh' | 'https';
 
 export interface BaseForgeConfig {
   type: ForgeType;
@@ -22,11 +24,18 @@ export interface CodebergForgeConfig extends BaseForgeConfig {
   type: 'codeberg';
 }
 
+export interface GitForgeConfig extends BaseForgeConfig {
+  type: 'git';
+  /** Default git URL protocol when cloning. SSH unless overridden. */
+  protocol?: GitProtocol;
+}
+
 export type ForgeConfig =
   | GitHubForgeConfig
   | GitLabForgeConfig
   | GiteaForgeConfig
-  | CodebergForgeConfig;
+  | CodebergForgeConfig
+  | GitForgeConfig;
 
 export interface ForgeMapConfig {
   root: string;

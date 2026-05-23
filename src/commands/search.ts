@@ -8,15 +8,6 @@ import { type ScannedRepo, scanRepos } from '../repos/scan.ts';
 
 type Format = 'auto' | 'pretty' | 'path' | 'slug';
 
-/**
- * OSC 8 hyperlink. Modern terminals (iTerm2, WezTerm, Kitty, Windows
- * Terminal, GNOME Terminal, VS Code) render it as a clickable link; old
- * ones just show the visible text.
- */
-function osc8(url: string, text: string): string {
-  return `\x1b]8;;${url}\x07${text}\x1b]8;;\x07`;
-}
-
 function renderTree(repos: ScannedRepo[]): string {
   const groups = new Map<string, ScannedRepo[]>();
   for (const r of repos) {
@@ -29,7 +20,7 @@ function renderTree(repos: ScannedRepo[]): string {
     Array.from(groups, ([forge, items]) => ({
       text: colors.bold(forge),
       children: items.map((r) => ({
-        text: `${colors.cyan(r.slug)}  ${osc8(`file://${r.localPath}`, colors.dim(r.localPath))}`
+        text: `${colors.cyan(r.slug)}  ${colors.dim(r.localPath)}`
       }))
     }))
   );
