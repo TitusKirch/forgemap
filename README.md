@@ -20,7 +20,7 @@ $ forgemap clone kirchDev/laravel-pbac
 ✔ Cloned kirchDev/laravel-pbac → ~/projects/comGithub/kirchDev/laravel-pbac
 ```
 
-That's it. Every repo lands at a predictable `<root>/<forge.dir>/<owner>/<repo>` path, and `forgemap path <slug>` gives you that path back for `cd "$(forgemap path …)"` from anywhere.
+That's it. Every repo lands at a predictable `<root>/<forge.dir>/<owner>/<repo>` path, and `forgemap cd <slug>` jumps into any of them from anywhere — exact slug, fuzzy match, or interactive picker.
 
 ## ✨ Features
 
@@ -42,7 +42,11 @@ pnpm add -g forgemap
 ```
 
 > [!IMPORTANT]
-> `forgemap clone` shells out to the [GitHub CLI](https://cli.github.com/) (`gh`). Install it once and run `gh auth login` so cloning works against private repos.
+> `git` must be on `PATH` — every forgemap command path uses it. The
+> [GitHub CLI](https://cli.github.com/) (`gh`) is only required when at
+> least one `type: 'github'` forge is configured (it powers
+> `forgemap clone`'s GitHub branch). Run `forgemap validate` after
+> setup to see exactly what's needed for your config.
 
 > [!TIP]
 > Hacking on forgemap itself? See [CONTRIBUTING.md → Trying the CLI locally](CONTRIBUTING.md#trying-the-cli-locally) — covers `pnpm setup`, `pnpm link --global .` and the shell-wrapper source.
@@ -54,43 +58,26 @@ pnpm add -g forgemap
 cd ~/projects
 forgemap config init
 
-# 2. Clone — any slug form works.
+# 2. Wire up the shell integration once — adds real `forgemap cd`.
+eval "$(forgemap shell-init)"            # zsh/bash, add to ~/.zshrc to persist
+# fish: forgemap shell-init fish | source
+
+# 3. Clone — any slug form works.
 forgemap clone kirchDev/laravel-pbac
 forgemap clone github:TitusKirch/forgemap
 forgemap clone https://github.com/foo/bar
 
-# 3. Jump into a repo from anywhere.
-cd "$(forgemap path kirchDev/laravel-pbac)"
+# 4. Jump into a repo from anywhere.
+forgemap cd kirchDev/laravel-pbac        # exact slug → direct cd
+forgemap cd laravel                      # fuzzy single match → direct cd
+forgemap cd kirch                        # multiple matches → interactive picker
+forgemap cd                              # no arg → picker over every clone
 ```
 
-Add a shell alias to make the jump even shorter:
-
-```bash
-fcd() { cd "$(forgemap path "$1")"; }
-fcd kirchDev/laravel-pbac
-```
-
-### Real `cd` via shell integration (recommended)
-
-Source the shell wrapper once:
-
-```bash
-# zsh/bash — drop into ~/.zshrc or ~/.bashrc
-eval "$(forgemap shell-init)"
-
-# fish
-forgemap shell-init fish | source
-```
-
-After that, `forgemap cd <slug>` actually changes directory:
-
-```bash
-forgemap cd laravel      # cd straight into kirchDev/laravel-pbac (single match)
-forgemap cd kirch        # multiple matches → interactive picker
-forgemap cd              # no arg → picker over every cloned repo
-```
-
-All other `forgemap` subcommands pass through to the real binary unchanged.
+`forgemap cd` resolves the slug, walks/picks across your cloned repos,
+and actually changes directory because the shell wrapper from
+`shell-init` intercepts it before the binary runs. Every other
+subcommand falls through to the real binary unchanged.
 
 ### Search and pick on demand
 
