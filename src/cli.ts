@@ -1,5 +1,6 @@
 import { defineCommand } from 'citty';
 import { cdCommand } from './commands/cd.ts';
+import { cleanupCommand } from './commands/cleanup.ts';
 import { cloneCommand } from './commands/clone.ts';
 import { completionCommand } from './commands/completion.ts';
 import { configCommand } from './commands/config/index.ts';
@@ -22,6 +23,7 @@ export const rootCommand = defineCommand({
   subCommands: {
     clone: cloneCommand,
     import: importCommand,
+    cleanup: cleanupCommand,
     cd: cdCommand,
     path: pathCommand,
     open: openCommand,

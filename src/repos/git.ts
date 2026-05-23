@@ -114,3 +114,32 @@ export async function setOriginUrl(
 ): Promise<CaptureResult> {
   return gitIn(localPath, ['remote', 'set-url', 'origin', url]);
 }
+
+/** Unix timestamp (seconds) of the most recent commit on any branch, or null
+ *  when there are no commits. Drives the staleness check in `cleanup`. */
+export async function getLastCommitUnix(
+  localPath: string
+): Promise<number | null> {
+  const result = await gitIn(localPath, ['log', '--all', '-1', '--format=%ct']);
+  if (result.code !== 0) return null;
+  const ts = Number.parseInt(result.stdout.trim(), 10);
+  return Number.isFinite(ts) ? ts : null;
+}
+
+/**
+ * True when any commit on any local branch is not reachable from a remote
+ * tracking ref — i.e. there is work that exists only locally. Conservative
+ * by design: with no remotes configured, everything counts as unpushed.
+ */
+export async function hasUnpushedCommits(localPath: string): Promise<boolean> {
+  const result = await gitIn(localPath, [
+    'log',
+    '--branches',
+    '--not',
+    '--remotes',
+    '--format=%H',
+    '-1'
+  ]);
+  if (result.code !== 0) return true;
+  return result.stdout.trim().length > 0;
+}
