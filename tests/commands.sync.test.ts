@@ -114,6 +114,16 @@ describe('syncCommand', () => {
     expect(exit).toBe(1);
   });
 
+  it('treats a timed-out fetch as a failure (does not hang)', async () => {
+    fetchRepoMock.mockImplementation(async (p: string) =>
+      p.includes('team/api')
+        ? { code: 124, stdout: '', stderr: '', timedOut: true }
+        : { code: 0, stdout: '', stderr: '' }
+    );
+    const exit = await runSync(dir);
+    expect(exit).toBe(1);
+  });
+
   it('reports a failure when fetchRepo throws', async () => {
     fetchRepoMock.mockImplementation(async () => {
       throw new Error('spawn ENOENT');

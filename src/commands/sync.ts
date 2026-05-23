@@ -130,10 +130,14 @@ export const syncCommand = defineCommand({
           outcomes.push({ repo, status: 'synced' });
           consola.success(colors.dim(repo.slug));
         } else {
+          const message = result.timedOut
+            ? 'timed out (remote unreachable)'
+            : (result.stderr || result.stdout).trim().split('\n')[0] ||
+              `git exited with code ${result.code}`;
           outcomes.push({
             repo,
             status: 'failed',
-            message: (result.stderr || result.stdout).trim().split('\n')[0]
+            message
           });
           consola.fail(
             `${colors.dim(repo.slug)} — ${outcomes.at(-1)?.message}`

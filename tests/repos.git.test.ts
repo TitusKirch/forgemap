@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   fetchRepo,
+  getLastCommitUnix,
   getRepoStatus,
+  hasUnpushedCommits,
   isClean,
   pullRepo
 } from '../src/repos/git.ts';
@@ -87,6 +89,33 @@ describe('repos/git', () => {
       const s = await getRepoStatus(dir);
       expect(s.ahead).toBe(1);
       expect(s.behind).toBe(0);
+    } finally {
+      await rm(remoteDir, { recursive: true, force: true });
+    }
+  });
+
+  it('getLastCommitUnix returns the latest commit time', async () => {
+    const ts = await getLastCommitUnix(dir);
+    expect(typeof ts).toBe('number');
+    // The init commit was just made; within a minute of now.
+    expect(Math.abs(Date.now() / 1000 - (ts as number))).toBeLessThan(60);
+  });
+
+  it('hasUnpushedCommits is true with no remote, false once pushed', async () => {
+    // No remote configured yet → everything counts as unpushed.
+    expect(await hasUnpushedCommits(dir)).toBe(true);
+
+    const remoteDir = await mkdtemp(join(tmpdir(), 'forgemap-git-remote-'));
+    try {
+      await git(remoteDir, ['init', '--bare', '--quiet', '-b', 'main']);
+      await git(dir, ['remote', 'add', 'origin', remoteDir]);
+      await git(dir, ['push', '--quiet', '-u', 'origin', 'main']);
+      expect(await hasUnpushedCommits(dir)).toBe(false);
+
+      await writeFile(join(dir, 'README.md'), 'more\n');
+      await git(dir, ['add', '.']);
+      await git(dir, ['commit', '--quiet', '-m', 'unpushed']);
+      expect(await hasUnpushedCommits(dir)).toBe(true);
     } finally {
       await rm(remoteDir, { recursive: true, force: true });
     }

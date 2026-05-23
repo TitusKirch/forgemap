@@ -1,11 +1,16 @@
 import { defineCommand } from 'citty';
 import consola from 'consola';
-
-type Shell = 'zsh' | 'bash' | 'fish';
-const SUPPORTED: Shell[] = ['zsh', 'bash', 'fish'];
+import {
+  type Shell,
+  SUPPORTED_SHELLS as SUPPORTED,
+  detectShell,
+  installRcBlock
+} from '../utils/shell.ts';
 
 const SUBCOMMANDS = [
   'clone',
+  'import',
+  'cleanup',
   'cd',
   'path',
   'open',
@@ -20,13 +25,6 @@ const SUBCOMMANDS = [
 ];
 
 const SLUG_COMMANDS = ['clone', 'cd', 'path', 'open', 'search', 'pick'];
-
-function detectShell(): Shell {
-  const env = process.env.SHELL ?? '';
-  if (env.endsWith('/fish')) return 'fish';
-  if (env.endsWith('/bash')) return 'bash';
-  return 'zsh';
-}
 
 function renderBash(): string {
   return `# forgemap bash completion — drop into your ~/.bashrc:
@@ -116,6 +114,12 @@ export const completionCommand = defineCommand({
       type: 'positional',
       description: `Shell flavor (${SUPPORTED.join(', ')}). Auto-detected from $SHELL if omitted.`,
       required: false
+    },
+    install: {
+      type: 'boolean',
+      description:
+        "Append the completion loader to your shell's rc file (idempotent) instead of printing",
+      default: false
     }
   },
   async run({ args }) {
@@ -127,6 +131,27 @@ export const completionCommand = defineCommand({
       process.exitCode = 1;
       return;
     }
+
+    if (args.install) {
+      const loader =
+        requested === 'fish'
+          ? 'forgemap completion fish | source'
+          : `eval "$(forgemap completion ${requested})"`;
+      const { status, rcFile } = await installRcBlock(requested, 'completion', [
+        loader
+      ]);
+      if (status === 'present') {
+        consola.info(`forgemap completion already present in ${rcFile}.`);
+      } else {
+        const verb = status === 'updated' ? 'Updated' : 'Added';
+        consola.success(`${verb} forgemap completion in ${rcFile}.`);
+        consola.info(
+          `Run \`source ${rcFile}\` or restart your shell to activate it.`
+        );
+      }
+      return;
+    }
+
     const out =
       requested === 'fish'
         ? renderFish()
