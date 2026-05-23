@@ -16,10 +16,10 @@ interface Row {
 
 function statusLine(row: Row): string {
   if (row.error || !row.status) {
-    return `${colors.cyan(row.repo.slug)}  ${colors.red(`error: ${row.error ?? 'unknown'}`)}`;
+    return `${colors.cyan(row.repo.repo)}  ${colors.red(`error: ${row.error ?? 'unknown'}`)}`;
   }
   const s = row.status;
-  const parts: string[] = [colors.cyan(row.repo.slug)];
+  const parts: string[] = [colors.cyan(row.repo.repo)];
   const aheadBehind: string[] = [];
   if (s.ahead > 0) aheadBehind.push(colors.green(`↑${s.ahead}`));
   if (s.behind > 0) aheadBehind.push(colors.yellow(`↓${s.behind}`));
@@ -32,17 +32,26 @@ function statusLine(row: Row): string {
   return parts.join('  ');
 }
 
+// Three levels, like a path: forge → owner → repo.
 function renderTree(rows: Row[]): string {
-  const groups = new Map<string, Row[]>();
+  const byForge = new Map<string, Map<string, Row[]>>();
   for (const row of rows) {
-    const list = groups.get(row.repo.forgeName);
+    let owners = byForge.get(row.repo.forgeName);
+    if (!owners) {
+      owners = new Map();
+      byForge.set(row.repo.forgeName, owners);
+    }
+    const list = owners.get(row.repo.owner);
     if (list) list.push(row);
-    else groups.set(row.repo.forgeName, [row]);
+    else owners.set(row.repo.owner, [row]);
   }
   return formatTree(
-    Array.from(groups, ([forge, items]) => ({
+    Array.from(byForge, ([forge, owners]) => ({
       text: colors.bold(forge),
-      children: items.map((row) => ({ text: statusLine(row) }))
+      children: Array.from(owners, ([owner, items]) => ({
+        text: owner,
+        children: items.map((row) => ({ text: statusLine(row) }))
+      }))
     }))
   );
 }

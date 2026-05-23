@@ -8,19 +8,28 @@ import { type ScannedRepo, scanRepos } from '../repos/scan.ts';
 
 type Format = 'auto' | 'pretty' | 'path' | 'slug';
 
+// Three levels, like a path: forge → owner → repo.
 function renderTree(repos: ScannedRepo[]): string {
-  const groups = new Map<string, ScannedRepo[]>();
+  const byForge = new Map<string, Map<string, ScannedRepo[]>>();
   for (const r of repos) {
-    const list = groups.get(r.forgeName);
+    let owners = byForge.get(r.forgeName);
+    if (!owners) {
+      owners = new Map();
+      byForge.set(r.forgeName, owners);
+    }
+    const list = owners.get(r.owner);
     if (list) list.push(r);
-    else groups.set(r.forgeName, [r]);
+    else owners.set(r.owner, [r]);
   }
 
   return formatTree(
-    Array.from(groups, ([forge, items]) => ({
+    Array.from(byForge, ([forge, owners]) => ({
       text: colors.bold(forge),
-      children: items.map((r) => ({
-        text: `${colors.cyan(r.slug)}  ${colors.dim(r.localPath)}`
+      children: Array.from(owners, ([owner, items]) => ({
+        text: owner,
+        children: items.map((r) => ({
+          text: `${colors.cyan(r.repo)}  ${colors.dim(r.localPath)}`
+        }))
       }))
     }))
   );
