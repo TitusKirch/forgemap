@@ -49,8 +49,7 @@ pnpm add -g forgemap
 
 Run `forgemap validate` after setup for an exact rundown of what's needed for your config.
 
-> [!TIP]
-> Hacking on forgemap itself? See [CONTRIBUTING.md → Trying the CLI locally](CONTRIBUTING.md#trying-the-cli-locally) — covers `pnpm setup`, `pnpm link --global .` and the shell-wrapper source.
+Hacking on forgemap itself? See [CONTRIBUTING.md → Trying the CLI locally](CONTRIBUTING.md#trying-the-cli-locally) — covers `pnpm setup`, `pnpm link --global .` and the shell-wrapper source.
 
 ## 🚀 Quick start
 
