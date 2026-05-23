@@ -69,3 +69,48 @@ export async function isClean(localPath: string): Promise<boolean> {
   const result = await gitIn(localPath, ['status', '--porcelain']);
   return result.code === 0 && result.stdout.trim().length === 0;
 }
+
+export interface GitRemote {
+  name: string;
+  url: string;
+}
+
+/** True if `localPath` is inside a git work tree. */
+export async function isGitRepo(localPath: string): Promise<boolean> {
+  const result = await gitIn(localPath, ['rev-parse', '--is-inside-work-tree']);
+  return result.code === 0 && result.stdout.trim() === 'true';
+}
+
+/** The `origin` remote URL, or null when there is no `origin`. */
+export async function getOriginUrl(localPath: string): Promise<string | null> {
+  const result = await gitIn(localPath, ['remote', 'get-url', 'origin']);
+  if (result.code !== 0) return null;
+  const url = result.stdout.trim();
+  return url.length > 0 ? url : null;
+}
+
+/** Every configured remote with a URL, in config order. */
+export async function getRemotes(localPath: string): Promise<GitRemote[]> {
+  const result = await gitIn(localPath, [
+    'config',
+    '--get-regexp',
+    '^remote\\..*\\.url$'
+  ]);
+  if (result.code !== 0) return [];
+  const remotes: GitRemote[] = [];
+  for (const line of result.stdout.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const match = trimmed.match(/^remote\.(.+)\.url\s+(.+)$/);
+    if (match) remotes.push({ name: match[1]!, url: match[2]! });
+  }
+  return remotes;
+}
+
+/** Repoint `origin` at a new URL. Used by `import --fix`. */
+export async function setOriginUrl(
+  localPath: string,
+  url: string
+): Promise<CaptureResult> {
+  return gitIn(localPath, ['remote', 'set-url', 'origin', url]);
+}

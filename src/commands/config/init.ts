@@ -1,18 +1,10 @@
-import { mkdir, writeFile } from 'node:fs/promises';
 import { defineCommand } from 'citty';
 import consola from 'consola';
-import { dirname, join, resolve } from 'pathe';
+import { join, resolve } from 'pathe';
+import type { ForgeMapConfig } from '../../config/schema.ts';
+import { writeConfigFile } from '../../config/write.ts';
 
-const TEMPLATE = `/**
- * forgemap configuration.
- *
- * For type-safe authoring, install forgemap and switch to:
- *   import { defineForgeMapConfig } from 'forgemap/config';
- *   export default defineForgeMapConfig({ ... });
- *
- * @type {import('forgemap').ForgeMapUserConfig}
- */
-export default {
+const DEFAULT_CONFIG: ForgeMapConfig = {
   root: '.',
   defaultForge: 'github',
   forges: {
@@ -23,7 +15,6 @@ export default {
     }
   }
 };
-`;
 
 export const configInitCommand = defineCommand({
   meta: {
@@ -44,25 +35,21 @@ export const configInitCommand = defineCommand({
     }
   },
   async run({ args }) {
-    const outDir = resolve(process.cwd(), args.out);
-    const target = join(outDir, 'forgemap.config.ts');
+    const result = await writeConfigFile(DEFAULT_CONFIG, {
+      outDir: args.out,
+      force: args.force
+    });
 
-    await mkdir(dirname(target), { recursive: true });
-
-    try {
-      await writeFile(target, TEMPLATE, {
-        encoding: 'utf8',
-        flag: args.force ? 'w' : 'wx'
-      });
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-        consola.error(`${target} already exists. Use --force to overwrite.`);
-        process.exitCode = 1;
-        return;
-      }
-      throw error;
+    if (!result) {
+      const target = join(
+        resolve(process.cwd(), args.out),
+        'forgemap.config.ts'
+      );
+      consola.error(`${target} already exists. Use --force to overwrite.`);
+      process.exitCode = 1;
+      return;
     }
 
-    consola.success(`Wrote ${target}`);
+    consola.success(`Wrote ${result.path}`);
   }
 });

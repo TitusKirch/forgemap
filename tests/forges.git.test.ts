@@ -2,15 +2,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../src/utils/exec.ts', () => ({
   hasCommand: vi.fn(),
-  execInherit: vi.fn()
+  execInherit: vi.fn(),
+  execCapture: vi.fn()
 }));
 
 import type { GitForgeConfig } from '../src/config/schema.ts';
 import { __test, gitAdapter } from '../src/forges/git.ts';
-import { execInherit, hasCommand } from '../src/utils/exec.ts';
+import { execCapture, execInherit, hasCommand } from '../src/utils/exec.ts';
 
 const mockedHasCommand = vi.mocked(hasCommand);
 const mockedExec = vi.mocked(execInherit);
+const mockedCapture = vi.mocked(execCapture);
 
 const forge: GitForgeConfig = {
   type: 'git',
@@ -24,8 +26,7 @@ describe('git adapter URL builder', () => {
       __test.buildCloneUrl({
         forge,
         owner: 'team',
-        repo: 'api',
-        dest: '/tmp/team/api'
+        repo: 'api'
       })
     ).toBe('git@gitlab.acme.com:team/api.git');
   });
@@ -36,8 +37,7 @@ describe('git adapter URL builder', () => {
       __test.buildCloneUrl({
         forge: httpsForge,
         owner: 'team',
-        repo: 'api',
-        dest: '/tmp/x'
+        repo: 'api'
       })
     ).toBe('https://gitlab.acme.com/team/api.git');
   });
@@ -49,7 +49,6 @@ describe('git adapter URL builder', () => {
         forge: httpsForge,
         owner: 'team',
         repo: 'api',
-        dest: '/tmp/x',
         protocol: 'ssh'
       })
     ).toBe('git@gitlab.acme.com:team/api.git');
@@ -91,5 +90,50 @@ describe('gitAdapter.clone', () => {
     await expect(
       gitAdapter.clone({ forge, owner: 'team', repo: 'api', dest: '/tmp/api' })
     ).rejects.toThrow(/exited with code 128/);
+  });
+});
+
+describe('gitAdapter.checkRemote', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns exists when ls-remote succeeds', async () => {
+    mockedHasCommand.mockResolvedValue(true);
+    mockedCapture.mockResolvedValue({ code: 0, stdout: 'refs', stderr: '' });
+    expect(
+      await gitAdapter.checkRemote!({ forge, owner: 'team', repo: 'api' })
+    ).toEqual({ state: 'exists', canonical: { owner: 'team', repo: 'api' } });
+    expect(mockedCapture).toHaveBeenCalledWith('git', [
+      'ls-remote',
+      'git@gitlab.acme.com:team/api.git'
+    ]);
+  });
+
+  it('prefers the supplied origin URL', async () => {
+    mockedHasCommand.mockResolvedValue(true);
+    mockedCapture.mockResolvedValue({ code: 0, stdout: '', stderr: '' });
+    await gitAdapter.checkRemote!({
+      forge,
+      owner: 'team',
+      repo: 'api',
+      originUrl: 'https://gitlab.acme.com/team/api.git'
+    });
+    expect(mockedCapture).toHaveBeenCalledWith('git', [
+      'ls-remote',
+      'https://gitlab.acme.com/team/api.git'
+    ]);
+  });
+
+  it('returns gone when ls-remote fails', async () => {
+    mockedHasCommand.mockResolvedValue(true);
+    mockedCapture.mockResolvedValue({
+      code: 128,
+      stdout: '',
+      stderr: 'not found'
+    });
+    expect(
+      await gitAdapter.checkRemote!({ forge, owner: 'team', repo: 'api' })
+    ).toEqual({ state: 'gone' });
   });
 });

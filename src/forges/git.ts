@@ -1,8 +1,24 @@
-import type { GitForgeConfig } from '../config/schema.ts';
-import { execInherit, hasCommand } from '../utils/exec.ts';
-import type { CloneOptions, ForgeAdapter } from './types.ts';
+import type {
+  ForgeConfig,
+  GitForgeConfig,
+  GitProtocol
+} from '../config/schema.ts';
+import { execCapture, execInherit, hasCommand } from '../utils/exec.ts';
+import type {
+  CloneOptions,
+  ForgeAdapter,
+  RemoteCheckInput,
+  RemoteCheckResult
+} from './types.ts';
 
-function buildCloneUrl(opts: CloneOptions): string {
+interface UrlParts {
+  forge: ForgeConfig;
+  owner: string;
+  repo: string;
+  protocol?: GitProtocol;
+}
+
+function buildCloneUrl(opts: UrlParts): string {
   const forge = opts.forge as GitForgeConfig;
   const protocol = opts.protocol ?? forge.protocol ?? 'ssh';
   if (protocol === 'https') {
@@ -23,6 +39,22 @@ export const gitAdapter: ForgeAdapter = {
     if (code !== 0) {
       throw new Error(`git clone exited with code ${code}`);
     }
+  },
+
+  async checkRemote(input: RemoteCheckInput): Promise<RemoteCheckResult> {
+    if (!(await hasCommand('git'))) {
+      return { state: 'unknown', reason: 'git not installed' };
+    }
+    // `git ls-remote` only proves reachability — it cannot detect a rename.
+    const url = input.originUrl ?? buildCloneUrl(input);
+    const result = await execCapture('git', ['ls-remote', url]);
+    if (result.code === 0) {
+      return {
+        state: 'exists',
+        canonical: { owner: input.owner, repo: input.repo }
+      };
+    }
+    return { state: 'gone' };
   }
 };
 
