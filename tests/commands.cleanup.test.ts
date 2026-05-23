@@ -182,8 +182,10 @@ describe('cleanupCommand', () => {
       ageDays: 400,
       dirty: true
     });
-    await runCleanup(dir, { yes: true });
+    const { out } = await runCleanup(dir, { yes: true });
     expect(existsSync(local)).toBe(true);
+    // Explains why the idle repo was kept.
+    expect(out).toContain('uncommitted changes');
   });
 
   it('keeps a repo with unpushed commits', async () => {
@@ -213,8 +215,9 @@ describe('cleanupCommand', () => {
       ageDays: 400
     });
     remoteExists['foo/gone'] = false; // remote is gone
-    await runCleanup(dir, { yes: true });
+    const { out } = await runCleanup(dir, { yes: true });
     expect(existsSync(local)).toBe(true);
+    expect(out).toContain('remote no longer exists');
   });
 
   it('lists but does not delete with --dry-run', async () => {

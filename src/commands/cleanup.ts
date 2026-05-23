@@ -23,8 +23,11 @@ const DAY_SECONDS = 86_400;
 const LOCAL_CONCURRENCY = 16;
 const REMOTE_CONCURRENCY = 10;
 
-/** A repo that passed every local safety gate; carries the origin identity
- *  used for the remote-existence check. */
+/**
+ * A stale repo that has an origin. `blocked` holds the reason it cannot be
+ * deleted, or null while it is still a safe candidate. Carries the origin
+ * identity used for the remote-existence check.
+ */
 interface Candidate {
   repo: ScannedRepo;
   origin: string;
@@ -32,14 +35,17 @@ interface Candidate {
   owner: string;
   name: string;
   lastCommitUnix: number;
+  blocked: string | null;
 }
 
 /**
- * Local gates (no network): must be a git repo, have an origin, be clean
- * (no uncommitted changes), have nothing unpushed, and have its newest commit
- * older than the cutoff. Repos without an origin are ignored entirely.
+ * Local gates (no network). Returns null for repos we ignore entirely:
+ * non-git dirs, repos without an origin, and repos that are NOT stale (their
+ * newest commit is within the cutoff). A stale repo with an origin is always
+ * returned, with `blocked` set when it is dirty or has unpushed work — so the
+ * caller can explain why it was kept.
  */
-async function localCandidate(
+async function evaluate(
   repo: ScannedRepo,
   cutoffUnix: number
 ): Promise<Candidate | null> {
@@ -47,12 +53,14 @@ async function localCandidate(
   const origin = await getOriginUrl(repo.localPath);
   if (!origin) return null;
 
-  const status = await getRepoStatus(repo.localPath);
-  if (status.dirty) return null;
-  if (await hasUnpushedCommits(repo.localPath)) return null;
-
   const lastCommitUnix = await getLastCommitUnix(repo.localPath);
   if (lastCommitUnix === null || lastCommitUnix > cutoffUnix) return null;
+
+  const status = await getRepoStatus(repo.localPath);
+  let blocked: string | null = null;
+  if (status.dirty) blocked = 'uncommitted changes';
+  else if (await hasUnpushedCommits(repo.localPath))
+    blocked = 'unpushed commits';
 
   let owner = repo.owner;
   let name = repo.repo;
@@ -64,7 +72,7 @@ async function localCandidate(
     // Unparseable origin — fall back to the folder identity.
   }
 
-  return { repo, origin, owner, name, lastCommitUnix };
+  return { repo, origin, owner, name, lastCommitUnix, blocked };
 }
 
 /** Check each candidate's remote, grouped by forge so GitHub can batch. */
@@ -197,44 +205,67 @@ export const cleanupCommand = defineCommand({
 
     const cutoffUnix = Math.floor(Date.now() / 1000) - days * DAY_SECONDS;
 
-    const local = (
+    // Stale repos that have an origin. (Recent repos and repos without an
+    // origin are ignored entirely and never listed.)
+    const stale = (
       await mapLimit(repos, LOCAL_CONCURRENCY, (repo) =>
-        localCandidate(repo, cutoffUnix)
+        evaluate(repo, cutoffUnix)
       )
     ).filter((c): c is Candidate => c !== null);
 
-    if (local.length === 0) {
-      consola.info('Nothing to clean up.');
+    if (stale.length === 0) {
+      consola.info(`No repo has been idle for ${days}+ days.`);
       return;
     }
 
-    // Only delete what is provably backed up: the remote must still exist
-    // (or have moved — still backed up). gone/unknown (e.g. unreachable) is
-    // never safe, so those repos are kept.
-    const remoteStates = await classifyRemotes(local);
-    const candidates = local.filter((c) => {
+    // Only the locally-safe ones (clean + pushed) need a remote check. Delete
+    // only what is provably backed up: the remote must still exist (or have
+    // moved — still backed up). gone/unreachable is never safe → kept.
+    const checkable = stale.filter((c) => c.blocked === null);
+    const remoteStates = await classifyRemotes(checkable);
+    for (const c of checkable) {
       const state = remoteStates.get(c.repo.localPath)?.state;
-      return state === 'exists' || state === 'moved';
-    });
+      if (state === 'exists' || state === 'moved') continue;
+      c.blocked =
+        state === 'gone' ? 'remote no longer exists' : 'remote unreachable';
+    }
+
+    const candidates = stale
+      .filter((c) => c.blocked === null)
+      .sort((a, b) => a.lastCommitUnix - b.lastCommitUnix);
+    const kept = stale
+      .filter((c) => c.blocked !== null)
+      .sort((a, b) => a.lastCommitUnix - b.lastCommitUnix);
+
+    if (candidates.length > 0) {
+      process.stdout.write(
+        `${colors.bold(`${candidates.length} repo(s) eligible for cleanup`)} ${colors.dim(`(clean, pushed, idle ${days}+ days, remote exists)`)}\n\n`
+      );
+      for (const c of candidates) {
+        process.stdout.write(
+          `  ${colors.cyan(`${c.repo.forgeName}:${c.repo.slug}`)}  ${colors.dim(`${ageDays(c.lastCommitUnix)}d idle`)}  ${colors.dim(c.repo.localPath)}\n`
+        );
+      }
+      process.stdout.write('\n');
+    }
+
+    // Explain why the other idle repos were spared.
+    if (kept.length > 0) {
+      process.stdout.write(
+        `${colors.dim(`${kept.length} idle repo(s) kept (not safe to delete):`)}\n`
+      );
+      for (const c of kept) {
+        process.stdout.write(
+          `  ${colors.dim(`${c.repo.forgeName}:${c.repo.slug}  ${ageDays(c.lastCommitUnix)}d idle — ${c.blocked}`)}\n`
+        );
+      }
+      process.stdout.write('\n');
+    }
 
     if (candidates.length === 0) {
-      consola.info(
-        'No safe candidates: stale repos were found, but none have a confirmed existing remote.'
-      );
+      consola.info('Nothing safe to delete.');
       return;
     }
-
-    candidates.sort((a, b) => a.lastCommitUnix - b.lastCommitUnix);
-
-    process.stdout.write(
-      `${colors.bold(`${candidates.length} repo(s) eligible for cleanup`)} ${colors.dim(`(clean, pushed, no commit in ${days}+ days, remote exists)`)}\n\n`
-    );
-    for (const c of candidates) {
-      process.stdout.write(
-        `  ${colors.cyan(`${c.repo.forgeName}:${c.repo.slug}`)}  ${colors.dim(`${ageDays(c.lastCommitUnix)}d idle`)}  ${colors.dim(c.repo.localPath)}\n`
-      );
-    }
-    process.stdout.write('\n');
 
     if (args['dry-run']) {
       consola.info('Dry run — nothing deleted.');
