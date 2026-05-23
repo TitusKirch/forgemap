@@ -155,4 +155,46 @@ describe('validateCommand', () => {
     expect(exit).toBe(1);
     expect(out).toMatch(/root directory.+does not exist/i);
   });
+
+  it('flags a forge with empty host', async () => {
+    const cfg = `export default {
+  root: '.',
+  defaultForge: 'work',
+  forges: { work: { type: 'git', host: '', dir: 'gl' } }
+};
+`;
+    await writeFile(join(dir, 'forgemap.config.ts'), cfg, 'utf8');
+    hasCommandMock.mockResolvedValue(true);
+    const { out, exit } = await runValidate(dir);
+    expect(exit).toBe(1);
+    expect(out).toMatch(/host is empty/);
+  });
+
+  it('flags a forge with empty dir', async () => {
+    const cfg = `export default {
+  root: '.',
+  defaultForge: 'work',
+  forges: { work: { type: 'git', host: 'gitlab.acme.com', dir: '' } }
+};
+`;
+    await writeFile(join(dir, 'forgemap.config.ts'), cfg, 'utf8');
+    hasCommandMock.mockResolvedValue(true);
+    const { out, exit } = await runValidate(dir);
+    expect(exit).toBe(1);
+    expect(out).toMatch(/dir is empty/);
+  });
+
+  it('flags an unknown forge type', async () => {
+    const cfg = `export default {
+  root: '.',
+  defaultForge: 'work',
+  forges: { work: { type: 'bitbucket', host: 'bitbucket.org', dir: 'bb' } }
+};
+`;
+    await writeFile(join(dir, 'forgemap.config.ts'), cfg, 'utf8');
+    hasCommandMock.mockResolvedValue(true);
+    const { out, exit } = await runValidate(dir);
+    expect(exit).toBe(1);
+    expect(out).toMatch(/unknown type/);
+  });
 });

@@ -113,4 +113,24 @@ describe('syncCommand', () => {
     const exit = await runSync(dir);
     expect(exit).toBe(1);
   });
+
+  it('reports a failure when fetchRepo throws', async () => {
+    fetchRepoMock.mockImplementation(async () => {
+      throw new Error('spawn ENOENT');
+    });
+    const exit = await runSync(dir);
+    expect(exit).toBe(1);
+  });
+
+  it('reports nothing to sync when filters match nothing', async () => {
+    const exit = await runSync(dir, { query: 'zzz-no-match-zzz' });
+    expect(exit).toBeUndefined();
+    expect(fetchRepoMock).not.toHaveBeenCalled();
+  });
+
+  it('--sequential limits the worker pool to 1', async () => {
+    const exit = await runSync(dir, { sequential: true });
+    expect(exit).toBeUndefined();
+    expect(fetchRepoMock).toHaveBeenCalledTimes(3);
+  });
 });

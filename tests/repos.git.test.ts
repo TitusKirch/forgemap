@@ -70,4 +70,25 @@ describe('repos/git', () => {
     expect(r.code).not.toBe(0);
     expect(`${r.stdout}${r.stderr}`).toMatch(/upstream|tracking|no/i);
   });
+
+  it('reports ahead/behind against an upstream', async () => {
+    // Build a "remote" by cloning the existing repo bare, then re-point
+    // the working repo at it as origin/main and diverge by one commit.
+    const remoteDir = await mkdtemp(join(tmpdir(), 'forgemap-git-remote-'));
+    try {
+      await git(remoteDir, ['init', '--bare', '--quiet', '-b', 'main']);
+      await git(dir, ['remote', 'add', 'origin', remoteDir]);
+      await git(dir, ['push', '--quiet', '-u', 'origin', 'main']);
+
+      await writeFile(join(dir, 'README.md'), 'second\n');
+      await git(dir, ['add', '.']);
+      await git(dir, ['commit', '--quiet', '-m', 'second']);
+
+      const s = await getRepoStatus(dir);
+      expect(s.ahead).toBe(1);
+      expect(s.behind).toBe(0);
+    } finally {
+      await rm(remoteDir, { recursive: true, force: true });
+    }
+  });
 });

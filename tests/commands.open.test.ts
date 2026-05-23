@@ -80,4 +80,22 @@ describe('openCommand', () => {
     expect(cmd).toBe('xdg-open');
     expect(args[0]).toBe(join(dir, 'comGithub', 'foo', 'bar'));
   });
+
+  it('reports ENOENT when the platform opener is missing', async () => {
+    delete process.env.WSL_DISTRO_NAME;
+    const handlers = new Map<string, (err: NodeJS.ErrnoException) => void>();
+    spawnMock.mockReturnValue({
+      on: vi.fn((event: string, fn: (err: NodeJS.ErrnoException) => void) => {
+        handlers.set(event, fn);
+      }),
+      unref: vi.fn()
+    });
+    process.exitCode = undefined;
+    await runOpen(dir, 'foo/bar');
+    const err = new Error('not found') as NodeJS.ErrnoException;
+    err.code = 'ENOENT';
+    handlers.get('error')?.(err);
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined;
+  });
 });
