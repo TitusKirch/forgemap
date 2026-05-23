@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -116,6 +116,22 @@ describe('shellInitCommand', () => {
       await runShellInit({ shell: 'bash', name: 'fm', install: true });
       const rc = await readFile(join(home, '.bashrc'), 'utf8');
       expect(rc).toContain('eval "$(forgemap shell-init bash --name fm)"');
+    });
+
+    it('removes a legacy block instead of duplicating it', async () => {
+      const rcPath = join(home, '.zshrc');
+      await writeFile(
+        rcPath,
+        '# my stuff\n\n# >>> forgemap shell-init >>>\neval "$(forgemap shell-init zsh)"\n# <<< forgemap shell-init <<<\n',
+        'utf8'
+      );
+      await runShellInit({ shell: 'zsh', install: true });
+      const rc = await readFile(rcPath, 'utf8');
+      // Legacy block gone, exactly one current block, user content kept.
+      expect(rc).not.toContain('# >>> forgemap shell-init >>>');
+      expect(rc.split('# >>> forgemap shell >>>').length - 1).toBe(1);
+      expect(rc).toContain('# my stuff');
+      expect(rc).toContain('eval "$(forgemap completion zsh)"');
     });
   });
 });

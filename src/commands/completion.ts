@@ -143,7 +143,8 @@ export const completionCommand = defineCommand({
       if (status === 'present') {
         consola.info(`forgemap completion already present in ${rcFile}.`);
       } else {
-        consola.success(`Added forgemap completion to ${rcFile}.`);
+        const verb = status === 'updated' ? 'Updated' : 'Added';
+        consola.success(`${verb} forgemap completion in ${rcFile}.`);
         consola.info(
           `Run \`source ${rcFile}\` or restart your shell to activate it.`
         );

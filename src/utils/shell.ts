@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'pathe';
 
@@ -22,31 +22,61 @@ export function rcFileFor(shell: Shell): string {
 
 export type InstallResult =
   | { status: 'installed'; rcFile: string }
+  | { status: 'updated'; rcFile: string }
   | { status: 'present'; rcFile: string };
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Strip every marker-guarded block for any of `labels` from `content`. */
+function stripBlocks(content: string, labels: string[]): string {
+  let out = content;
+  for (const label of labels) {
+    const l = escapeRegExp(label);
+    const re = new RegExp(
+      `\\n*# >>> forgemap ${l} >>>[\\s\\S]*?# <<< forgemap ${l} <<<\\n?`,
+      'g'
+    );
+    out = out.replace(re, '');
+  }
+  return out;
+}
+
 /**
- * Idempotently append a marker-guarded block of lines to the shell's rc file.
- * `label` namespaces the markers so independent features (the cd wrapper vs.
- * completion) don't clash. Returns whether it was added or already present.
+ * Install a marker-guarded block of lines into the shell's rc file. `label`
+ * namespaces the markers so independent features don't clash; `legacyLabels`
+ * are older labels this feature used to write — they're removed too, so a
+ * label rename never leaves a stale duplicate behind. Idempotent: re-running
+ * collapses any existing/legacy blocks into a single current one.
  */
 export async function installRcBlock(
   shell: Shell,
   label: string,
-  lines: string[]
+  lines: string[],
+  legacyLabels: string[] = []
 ): Promise<InstallResult> {
   const rcFile = rcFileFor(shell);
-  const marker = `# >>> forgemap ${label} >>>`;
   let existing = '';
   try {
     existing = await readFile(rcFile, 'utf8');
   } catch {
     // rc file doesn't exist yet — we'll create it.
   }
-  if (existing.includes(marker)) {
+
+  const allLabels = [label, ...legacyLabels];
+  const hadAny = allLabels.some((l) =>
+    existing.includes(`# >>> forgemap ${l} >>>`)
+  );
+
+  const block = `# >>> forgemap ${label} >>>\n${lines.join('\n')}\n# <<< forgemap ${label} <<<\n`;
+  const cleaned = stripBlocks(existing, allLabels).replace(/\s*$/, '');
+  const next = cleaned.length > 0 ? `${cleaned}\n\n${block}` : block;
+
+  if (next === existing) {
     return { status: 'present', rcFile };
   }
-  const block = `\n${marker}\n${lines.join('\n')}\n# <<< forgemap ${label} <<<\n`;
   await mkdir(dirname(rcFile), { recursive: true });
-  await appendFile(rcFile, block, 'utf8');
-  return { status: 'installed', rcFile };
+  await writeFile(rcFile, next, 'utf8');
+  return { status: hadAny ? 'updated' : 'installed', rcFile };
 }

@@ -21,13 +21,18 @@ async function install(shell: Shell, name: string): Promise<void> {
           `eval "$(forgemap shell-init ${shell}${nameArg})"`,
           `eval "$(forgemap completion ${shell})"`
         ];
-  const { status, rcFile } = await installRcBlock(shell, 'shell', loaders);
+  // 'shell-init' is the legacy label (before this block also loaded
+  // completion) — strip it so a re-install never leaves a duplicate.
+  const { status, rcFile } = await installRcBlock(shell, 'shell', loaders, [
+    'shell-init'
+  ]);
   if (status === 'present') {
     consola.info(`forgemap shell integration already present in ${rcFile}.`);
     return;
   }
+  const verb = status === 'updated' ? 'Updated' : 'Added';
   consola.success(
-    `Added forgemap shell integration (cd + completion) to ${rcFile}.`
+    `${verb} forgemap shell integration (cd + completion) in ${rcFile}.`
   );
   consola.info(
     `Run \`source ${rcFile}\` or restart your shell to activate it.`
