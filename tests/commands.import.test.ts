@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -216,5 +216,44 @@ describe('importCommand', () => {
 
     await runImport({ path: dir, format: 'json', 'write-config': false });
     expect(existsSync(join(dir, 'forgemap.config.ts'))).toBe(false);
+  });
+
+  it('renders a grouped pretty report with a derived-config section', async () => {
+    const a = await makeRepo('github.com', 'foo', 'bar');
+    const b = await makeRepo('github.com', 'foo', 'baz');
+    repos[a] = { isRepo: true, origin: 'git@github.com:foo/bar.git' };
+    repos[b] = { isRepo: true, origin: 'git@github.com:foo/baz.git' };
+    ghResponses['foo/bar'] = 'foo/bar';
+    ghResponses['foo/baz'] = 'foo/baz';
+
+    const { out } = await runImport({ path: dir, 'write-config': false });
+    expect(out).toContain('Scanned');
+    expect(out).toContain('foo');
+    expect(out).toContain('bar');
+    expect(out).toContain('baz');
+    expect(out).toContain('Derived config');
+    expect(out).toContain('2 repos');
+  });
+
+  it('reports cleanly on an empty tree', async () => {
+    const { out } = await runImport({ path: dir, 'write-config': false });
+    expect(out).toContain('Scanned');
+    expect(existsSync(join(dir, 'forgemap.config.ts'))).toBe(false);
+  });
+
+  it('augments an existing config instead of clobbering it', async () => {
+    const local = await makeRepo('comGithub', 'foo', 'bar');
+    repos[local] = { isRepo: true, origin: 'git@github.com:foo/bar.git' };
+    ghResponses['foo/bar'] = 'foo/bar';
+    await writeFile(
+      join(dir, 'forgemap.config.ts'),
+      "export default { root: '.', defaultForge: 'existing', forges: { existing: { type: 'git', host: 'git.example.com', dir: 'other' } } };\n",
+      'utf8'
+    );
+
+    await runImport({ path: dir, format: 'json' });
+    const written = await readFile(join(dir, 'forgemap.config.ts'), 'utf8');
+    expect(written).toContain('existing'); // pre-existing forge kept
+    expect(written).toContain('comGithub'); // derived forge added
   });
 });
