@@ -42,4 +42,11 @@ export interface ForgeAdapter {
    * can only tell exists from gone.
    */
   checkRemote?(input: RemoteCheckInput): Promise<RemoteCheckResult>;
+  /**
+   * Optional batched variant — when present the importer prefers it over
+   * looping `checkRemote`, so a forge can collapse many lookups into one
+   * request (GitHub does this with a single GraphQL query). Results are
+   * returned positionally, one per input.
+   */
+  checkRemotes?(inputs: RemoteCheckInput[]): Promise<RemoteCheckResult[]>;
 }

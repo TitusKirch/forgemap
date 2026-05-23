@@ -110,6 +110,17 @@ describe('importCommand', () => {
             return state?.lsRemote === 'gone' ? fail() : ok('');
           }
         }
+        if (cmd === 'gh' && args[0] === 'api' && args[1] === 'graphql') {
+          const query = String(args[3] ?? '');
+          const data: Record<string, { nameWithOwner: string } | null> = {};
+          const re = /r(\d+): repository\(owner: "([^"]+)", name: "([^"]+)"\)/g;
+          for (let m = re.exec(query); m; m = re.exec(query)) {
+            const slug = `${m[2]}/${m[3]}`;
+            data[`r${m[1]}`] =
+              ghResponses[slug] === slug ? { nameWithOwner: slug } : null;
+          }
+          return ok(JSON.stringify({ data }));
+        }
         if (cmd === 'gh' && args[0] === 'api') {
           const slug = String(args[1]).replace('repos/', '');
           return ghResponses[slug]

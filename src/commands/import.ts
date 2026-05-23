@@ -211,11 +211,28 @@ export const importCommand = defineCommand({
       return;
     }
 
+    // Progress for the (potentially slow) remote checks. stderr-only and
+    // TTY-guarded so it never corrupts JSON on stdout or piped logs.
+    const showProgress = args['remote-check'] && Boolean(process.stderr.isTTY);
+    let clearLen = 0;
+    const onProgress = showProgress
+      ? (done: number, total: number) => {
+          const msg = `⏳ Checking remotes ${done}/${total}`;
+          process.stderr.write(`\r${msg} `);
+          clearLen = msg.length + 1;
+        }
+      : undefined;
+
     const result = await analyzeImport({
       path,
       type: args.type,
-      remoteCheck: args['remote-check']
+      remoteCheck: args['remote-check'],
+      onProgress
     });
+
+    if (clearLen > 0) {
+      process.stderr.write(`\r${' '.repeat(clearLen)}\r`);
+    }
 
     const applied = args.fix ? await applyFixes(result.reports) : [];
 

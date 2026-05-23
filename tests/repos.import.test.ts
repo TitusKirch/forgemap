@@ -70,6 +70,20 @@ beforeEach(() => {
         }
         if (args[0] === 'remote' && args[1] === 'set-url') return ok('');
       }
+      if (cmd === 'gh' && args[0] === 'api' && args[1] === 'graphql') {
+        // Resolve each aliased repository() lookup. A hit (full_name equals
+        // the queried slug) returns a node; a miss returns null so the
+        // adapter's REST fallback distinguishes moved from gone.
+        const query = String(args[3] ?? '');
+        const data: Record<string, { nameWithOwner: string } | null> = {};
+        const re = /r(\d+): repository\(owner: "([^"]+)", name: "([^"]+)"\)/g;
+        for (let m = re.exec(query); m; m = re.exec(query)) {
+          const slug = `${m[2]}/${m[3]}`;
+          data[`r${m[1]}`] =
+            ghResponses[slug] === slug ? { nameWithOwner: slug } : null;
+        }
+        return ok(JSON.stringify({ data }));
+      }
       if (cmd === 'gh' && args[0] === 'api') {
         const slug = String(args[1]).replace('repos/', '');
         const full = ghResponses[slug];

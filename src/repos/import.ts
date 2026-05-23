@@ -6,7 +6,8 @@ import type {
   ForgeType
 } from '../config/schema.ts';
 import { getForgeAdapter } from '../forges/registry.ts';
-import type { RemoteCheckResult } from '../forges/types.ts';
+import type { RemoteCheckInput, RemoteCheckResult } from '../forges/types.ts';
+import { mapLimit } from '../utils/concurrency.ts';
 import { parseSlug } from '../slug/parse.ts';
 import { getOriginUrl, getRemotes, isGitRepo, type GitRemote } from './git.ts';
 
@@ -20,6 +21,8 @@ export interface ImportOptions {
   type: ImportType;
   /** Run the per-forge network existence/move check. Default true. */
   remoteCheck: boolean;
+  /** Called as remote checks complete, for progress reporting. */
+  onProgress?: (done: number, total: number) => void;
 }
 
 export interface DiscoveredRepo {
@@ -241,65 +244,20 @@ async function analyzeLocal(
   return { report, parsed };
 }
 
-/** Remote phase: append host-unmatched + the per-forge network check. */
-async function analyzeRemote(
+/** Translate a remote-check result into a finding on the report. */
+function pushRemoteFinding(
   report: RepoReport,
-  parsed: ParsedOrigin | null,
-  forge: ForgeConfig | undefined,
-  options: ImportOptions
-): Promise<void> {
+  parsed: ParsedOrigin,
+  result: RemoteCheckResult,
+  path: string
+): void {
   const { repo } = report;
-
-  if (parsed?.host && forge?.host && parsed.host !== forge.host) {
-    report.findings.push({
-      kind: 'host-unmatched',
-      severity: 'warn',
-      message: `origin host ${parsed.host} differs from forge host ${forge.host}`
-    });
-  }
-
-  // Only repos with a parseable origin reach the network check.
-  if (!report.originUrl || !parsed) return;
-
-  if (!options.remoteCheck) {
-    report.findings.push({
-      kind: 'remote-check-skipped',
-      severity: 'ok',
-      message: 'remote check skipped (--no-remote-check)'
-    });
-    return;
-  }
-
-  if (!forge) {
-    report.findings.push({
-      kind: 'remote-check-unknown',
-      severity: 'warn',
-      message: 'no forge derived for this server dir'
-    });
-    return;
-  }
-
-  let result: RemoteCheckResult;
-  try {
-    const adapter = getForgeAdapter(forge.type);
-    result = adapter.checkRemote
-      ? await adapter.checkRemote({
-          forge,
-          owner: parsed.owner,
-          repo: parsed.repo,
-          originUrl: report.originUrl
-        })
-      : { state: 'unknown', reason: `${forge.type} has no remote check` };
-  } catch (error) {
-    result = { state: 'unknown', reason: (error as Error).message };
-  }
-
   switch (result.state) {
     case 'exists':
       break;
     case 'moved': {
       const to = join(
-        options.path,
+        path,
         repo.serverDir,
         result.canonical.owner,
         result.canonical.repo
@@ -338,30 +296,153 @@ async function analyzeRemote(
   }
 }
 
+/** A repo that has a parseable origin and is therefore eligible for the
+ *  network check, paired with its derived forge. */
+interface Checkable {
+  report: RepoReport;
+  parsed: ParsedOrigin;
+}
+
+/** Run the network check for one forge's repos, preferring the batched
+ *  adapter method and falling back to a concurrency-limited per-repo loop. */
+async function checkForgeGroup(
+  forge: ForgeConfig,
+  items: Checkable[],
+  options: ImportOptions,
+  bump: () => void
+): Promise<void> {
+  const inputs: RemoteCheckInput[] = items.map((it) => ({
+    forge,
+    owner: it.parsed.owner,
+    repo: it.parsed.repo,
+    originUrl: it.report.originUrl ?? undefined
+  }));
+
+  let adapter: ReturnType<typeof getForgeAdapter>;
+  try {
+    adapter = getForgeAdapter(forge.type);
+  } catch (error) {
+    for (const it of items) {
+      it.report.findings.push({
+        kind: 'remote-check-unknown',
+        severity: 'warn',
+        message: `remote check inconclusive: ${(error as Error).message}`
+      });
+      bump();
+    }
+    return;
+  }
+
+  if (adapter.checkRemotes) {
+    let results: RemoteCheckResult[];
+    try {
+      results = await adapter.checkRemotes(inputs);
+    } catch (error) {
+      results = inputs.map(() => ({
+        state: 'unknown',
+        reason: (error as Error).message
+      }));
+    }
+    items.forEach((it, i) => {
+      pushRemoteFinding(it.report, it.parsed, results[i]!, options.path);
+      bump();
+    });
+    return;
+  }
+
+  const check = adapter.checkRemote;
+  await mapLimit(items, REMOTE_CONCURRENCY, async (it, i) => {
+    let result: RemoteCheckResult;
+    try {
+      result = check
+        ? await check(inputs[i]!)
+        : { state: 'unknown', reason: `${forge.type} has no remote check` };
+    } catch (error) {
+      result = { state: 'unknown', reason: (error as Error).message };
+    }
+    pushRemoteFinding(it.report, it.parsed, result, options.path);
+    bump();
+  });
+}
+
+const LOCAL_CONCURRENCY = 16;
+const REMOTE_CONCURRENCY = 10;
+
 /** Discover, reconcile, and (optionally) network-check an importable tree. */
 export async function analyzeImport(
   options: ImportOptions
 ): Promise<ImportResult> {
   const discovered = await discoverForgemapLayout(options.path);
 
-  const locals = await Promise.all(
-    discovered.map((repo) => analyzeLocal(repo, options))
+  const locals = await mapLimit(discovered, LOCAL_CONCURRENCY, (repo) =>
+    analyzeLocal(repo, options)
   );
-  const derived = deriveConfig(
-    locals.map((l) => l.report),
-    options.path
+  const reports = locals.map((l) => l.report);
+  const derived = deriveConfig(reports, options.path);
+
+  // host-unmatched is offline but needs the derived forge to compare against.
+  for (const { report, parsed } of locals) {
+    const forge = derived.forges[report.repo.serverDir];
+    if (parsed?.host && forge?.host && parsed.host !== forge.host) {
+      report.findings.push({
+        kind: 'host-unmatched',
+        severity: 'warn',
+        message: `origin host ${parsed.host} differs from forge host ${forge.host}`
+      });
+    }
+  }
+
+  const checkable: Checkable[] = locals.flatMap((l) =>
+    l.report.originUrl && l.parsed
+      ? [{ report: l.report, parsed: l.parsed }]
+      : []
   );
+
+  if (!options.remoteCheck) {
+    for (const { report } of checkable) {
+      report.findings.push({
+        kind: 'remote-check-skipped',
+        severity: 'ok',
+        message: 'remote check skipped (--no-remote-check)'
+      });
+    }
+    return { root: options.path, derived, reports };
+  }
+
+  const total = checkable.length;
+  let done = 0;
+  const bump = () => {
+    done++;
+    options.onProgress?.(done, total);
+  };
+  options.onProgress?.(0, total);
+
+  // Group by server dir so each forge's repos can be checked in one batch.
+  const groups = new Map<string, Checkable[]>();
+  for (const item of checkable) {
+    const key = item.report.repo.serverDir;
+    const list = groups.get(key);
+    if (list) list.push(item);
+    else groups.set(key, [item]);
+  }
 
   await Promise.all(
-    locals.map((l) =>
-      analyzeRemote(
-        l.report,
-        l.parsed,
-        derived.forges[l.report.repo.serverDir],
-        options
-      )
-    )
+    Array.from(groups, ([serverDir, items]) => {
+      const forge = derived.forges[serverDir];
+      if (!forge) {
+        for (const it of items) {
+          it.report.findings.push({
+            kind: 'remote-check-unknown',
+            severity: 'warn',
+            message: 'no forge derived for this server dir'
+          });
+          bump();
+        }
+        return Promise.resolve();
+      }
+      return checkForgeGroup(forge, items, options, bump);
+    })
   );
 
-  return { root: options.path, derived, reports: locals.map((l) => l.report) };
+  return { root: options.path, derived, reports };
 }

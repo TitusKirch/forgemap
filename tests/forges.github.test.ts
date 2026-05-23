@@ -110,3 +110,80 @@ describe('githubAdapter.checkRemote', () => {
     });
   });
 });
+
+describe('githubAdapter.checkRemotes (batch)', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const inputs = [
+    { forge: baseRemote.forge, owner: 'foo', repo: 'bar' },
+    { forge: baseRemote.forge, owner: 'foo', repo: 'baz' }
+  ];
+
+  it('returns unknown for all when gh is missing', async () => {
+    mockedHasCommand.mockResolvedValue(false);
+    const out = await githubAdapter.checkRemotes!(inputs);
+    expect(out).toEqual([
+      { state: 'unknown', reason: 'gh not installed' },
+      { state: 'unknown', reason: 'gh not installed' }
+    ]);
+    expect(mockedCapture).not.toHaveBeenCalled();
+  });
+
+  it('resolves all hits from a single GraphQL call without REST fallback', async () => {
+    mockedHasCommand.mockResolvedValue(true);
+    mockedCapture.mockResolvedValue({
+      code: 0,
+      stdout: JSON.stringify({
+        data: {
+          r0: { nameWithOwner: 'foo/bar' },
+          r1: { nameWithOwner: 'foo/baz' }
+        }
+      }),
+      stderr: ''
+    });
+
+    const out = await githubAdapter.checkRemotes!(inputs);
+    expect(out).toEqual([
+      { state: 'exists', canonical: { owner: 'foo', repo: 'bar' } },
+      { state: 'exists', canonical: { owner: 'foo', repo: 'baz' } }
+    ]);
+    // Exactly one call — the GraphQL batch, no per-repo REST follow-ups.
+    expect(mockedCapture).toHaveBeenCalledTimes(1);
+    expect(mockedCapture).toHaveBeenCalledWith('gh', [
+      'api',
+      'graphql',
+      '-f',
+      expect.stringContaining('repository(owner: "foo", name: "bar")')
+    ]);
+  });
+
+  it('falls back to a redirect-following REST call for GraphQL nulls', async () => {
+    mockedHasCommand.mockResolvedValue(true);
+    mockedCapture.mockImplementation(async (_cmd, args: string[]) => {
+      if (args[1] === 'graphql') {
+        return {
+          code: 0,
+          stdout: JSON.stringify({
+            data: { r0: { nameWithOwner: 'foo/bar' }, r1: null }
+          }),
+          stderr: ''
+        };
+      }
+      // REST fallback for the null (foo/baz) → moved.
+      return { code: 0, stdout: 'foo/baz-new\n', stderr: '' };
+    });
+
+    const out = await githubAdapter.checkRemotes!(inputs);
+    expect(out[0]).toEqual({
+      state: 'exists',
+      canonical: { owner: 'foo', repo: 'bar' }
+    });
+    expect(out[1]).toEqual({
+      state: 'moved',
+      canonical: { owner: 'foo', repo: 'baz-new' },
+      canonicalUrl: 'https://github.com/foo/baz-new.git'
+    });
+  });
+});
