@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.3.0](https://github.com/TitusKirch/forgemap/compare/v0.2.0...v0.3.0) (2026-05-24)
+
+
+### Features
+
+* **cleanup:** add --include-dirty and --include-unpushed ([769bafa](https://github.com/TitusKirch/forgemap/commit/769bafa3a0f19540b3c2d5f00fd51eaf07b5d4f7))
+* **cleanup:** add cleanup command for stale, safely-backed-up repos ([bc24909](https://github.com/TitusKirch/forgemap/commit/bc24909efc34cf4ff569912a2e3295ced23fca71))
+* **cleanup:** explain why idle repos are kept ([97e8095](https://github.com/TitusKirch/forgemap/commit/97e8095da77cd61720845e415213d731da85ccad))
+* **cleanup:** prune all empty owner/server dirs, not just this run's ([3a4f285](https://github.com/TitusKirch/forgemap/commit/3a4f285eaedab98756b08393f74737e6070531f3))
+* **completion:** add --install; one-step shell setup with completion ([138477a](https://github.com/TitusKirch/forgemap/commit/138477abed663edf236cf80fda9388bbc981b38b))
+* import & cleanup commands, one-step shell setup, network hardening ([#7](https://github.com/TitusKirch/forgemap/issues/7)) ([b896caf](https://github.com/TitusKirch/forgemap/commit/b896cafeb314ecb0706a6029cac4a93ecfd64f29))
+* **import:** add import command to adopt existing repo trees ([30925f3](https://github.com/TitusKirch/forgemap/commit/30925f3fce155e8fb5f89e3ed62ef4f57c74a24d))
+* **import:** group the report tree by owner under each forge ([98d9e68](https://github.com/TitusKirch/forgemap/commit/98d9e680ddac93c3e574e44d7de5946be050f7e5))
+* **shell-init:** add --install to write the loader into the rc file ([dd6130a](https://github.com/TitusKirch/forgemap/commit/dd6130a7aa047295f5d3d5b497b1b97257acba7d))
+* **status,search:** group tree output by owner under each forge ([2ed69c5](https://github.com/TitusKirch/forgemap/commit/2ed69c5d4f7bf1b755c33c8036dc304db93a625f))
+
+
+### Bug Fixes
+
+* **cleanup:** base staleness on local branches; prune empty owner dirs ([41c292b](https://github.com/TitusKirch/forgemap/commit/41c292b15de3ec9ca24e9e172f12ed9f0bab6dee))
+* **config:** discover config via parent walk-up and global fallback ([3876e9c](https://github.com/TitusKirch/forgemap/commit/3876e9ca51c391690ab56198b8b85d8757fee4cc))
+* **import:** only report a remote as gone on an explicit not-found ([5b5cf86](https://github.com/TitusKirch/forgemap/commit/5b5cf86187064732a46428ddd79f21f543ed232d))
+* **import:** time out and never block on a hung remote check ([8547db5](https://github.com/TitusKirch/forgemap/commit/8547db50fd5398dcc066ca13fa502410c58a04bc))
+* **pick:** make the interactive picker render under captured stdout ([15fd3e6](https://github.com/TitusKirch/forgemap/commit/15fd3e630fbe1ee0ad370b734c5f345790e5495d))
+* **pick:** render the picker UI to stderr, keep stdout to the path ([8a1ffaf](https://github.com/TitusKirch/forgemap/commit/8a1ffafd1299e305cf2e6e99e10fefc669e25497))
+* **shell-init:** collapse duplicate/legacy rc blocks on re-install ([388be31](https://github.com/TitusKirch/forgemap/commit/388be31e55087a58ce0a0b502bad1f4fc988079b))
+* **sync:** never hang on an unreachable remote during fetch/pull ([f99befd](https://github.com/TitusKirch/forgemap/commit/f99befd1710a53beadd717d1bc529f0ba6b9f75f))
+
+
+### Performance Improvements
+
+* **import:** batch GitHub checks, limit concurrency, show progress ([98a8209](https://github.com/TitusKirch/forgemap/commit/98a82091effb2436c224c8b8f750c15c6b7d90c9))
+
 ## [0.2.0](https://github.com/TitusKirch/forgemap/compare/v0.1.0...v0.2.0) (2026-05-23)
 
 
