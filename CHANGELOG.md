@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/TitusKirch/forgemap/compare/v0.3.0...v0.4.0) (2026-05-25)
+
+
+### Features
+
+* **ci:** run release-please under the kirchDev Release App ([#14](https://github.com/TitusKirch/forgemap/issues/14)) ([313527b](https://github.com/TitusKirch/forgemap/commit/313527befb79dfa3b55058df28d013e6810d3958))
+
 ## [0.3.0](https://github.com/TitusKirch/forgemap/compare/v0.2.0...v0.3.0) (2026-05-24)
 
 
