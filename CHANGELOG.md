@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/TitusKirch/forgemap/compare/v0.4.0...v0.4.1) (2026-05-27)
+
+
+### Bug Fixes
+
+* **release:** bump package.json via release-type node ([29cc4d0](https://github.com/TitusKirch/forgemap/commit/29cc4d08bf9387e1d312cd4c5f835bd3a0a0c589))
+
 ## [0.4.0](https://github.com/TitusKirch/forgemap/compare/v0.3.0...v0.4.0) (2026-05-25)
 
 
