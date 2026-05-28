@@ -11,6 +11,8 @@
 [![Node Version](https://img.shields.io/node/v/forgemap.svg?style=flat-square&color=8993be)](https://www.npmjs.com/package/forgemap)
 [![License: MIT](https://img.shields.io/npm/l/forgemap.svg?style=flat-square&color=10b981)](LICENSE)
 
+![forgemap demo](.github/assets/demo.gif)
+
 </div>
 
 ---
