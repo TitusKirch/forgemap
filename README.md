@@ -37,52 +37,40 @@ That's it. Every repo lands at a predictable `<root>/<forge.dir>/<owner>/<repo>`
 - **🧰 Typed config** — `forgemap.config.ts` with `defineForgeMapConfig()`, parent walk-up discovery, and a global fallback.
 - **🚀 Shell-friendly** — `forgemap shell-init --install` wires up real `forgemap cd <slug>` **and** tab-completion in one step.
 
-## 📦 Installation
+## 📦 Install & run
+
+> [!IMPORTANT]
+> Needs **Node 24+** and **`git`** on `PATH`. [`gh`](https://cli.github.com/) (GitHub CLI) is only required when a `type: 'github'` forge is configured — run `forgemap validate` for an exact rundown of what your config needs.
 
 ```bash
-npm install -g forgemap
-# or
-pnpm add -g forgemap
+npm install -g forgemap   # or: pnpm add -g forgemap
+
+cd ~/projects                            # the directory that should hold all your repos
+forgemap config init                     # write a starter forgemap.config.ts
+forgemap shell-init --install            # cd wrapper + completion → your rc file (idempotent)
+source ~/.zshrc                          # re-source once, then it's automatic
+
+forgemap clone kirchDev/laravel-pbac     # any slug form works: owner/repo, forge:owner/repo, URL, SSH
+forgemap cd laravel                      # fuzzy match → jump in; bare `forgemap cd` opens a picker
 ```
 
-**Requirements**
+`forgemap cd` resolves the slug, walks/picks across your cloned repos, and actually changes directory because the shell wrapper from `shell-init` intercepts it before the binary runs. Every other subcommand falls through to the real binary unchanged. Hacking on forgemap itself? See [CONTRIBUTING.md → Trying the CLI locally](CONTRIBUTING.md#trying-the-cli-locally) — covers `pnpm setup`, `pnpm link --global .` and the shell-wrapper source.
 
-- Node 24+
-- `git` on `PATH`
-- [`gh`](https://cli.github.com/) (GitHub CLI) — only when a `type: 'github'` forge is configured
+<details>
+<summary><strong>All commands</strong> — clone, cd, search, open, sync/status, import, cleanup, validate, shell-init, config</summary>
 
-Run `forgemap validate` after setup for an exact rundown of what's needed for your config.
-
-Hacking on forgemap itself? See [CONTRIBUTING.md → Trying the CLI locally](CONTRIBUTING.md#trying-the-cli-locally) — covers `pnpm setup`, `pnpm link --global .` and the shell-wrapper source.
-
-## 🚀 Quick start
+### Clone & jump
 
 ```bash
-# 1. Pick a directory that should hold all your repos and drop a config there.
-cd ~/projects
-forgemap config init
-
-# 2. Wire up the shell integration once — real `forgemap cd` + tab-completion.
-forgemap shell-init --install            # appends loaders to ~/.zshrc (or bashrc/fish)
-source ~/.zshrc                          # re-source once, then it's automatic
-# Prefer manual? eval "$(forgemap shell-init)"   ·   fish: forgemap shell-init fish | source
-
-# 3. Clone — any slug form works.
-forgemap clone kirchDev/laravel-pbac
+forgemap clone kirchDev/laravel-pbac     # default forge
 forgemap clone github:TitusKirch/forgemap
 forgemap clone https://github.com/foo/bar
 
-# 4. Jump into a repo from anywhere.
 forgemap cd kirchDev/laravel-pbac        # exact slug → direct cd
 forgemap cd laravel                      # fuzzy single match → direct cd
 forgemap cd kirch                        # multiple matches → interactive picker
 forgemap cd                              # no arg → picker over every clone
 ```
-
-`forgemap cd` resolves the slug, walks/picks across your cloned repos,
-and actually changes directory because the shell wrapper from
-`shell-init` intercepts it before the binary runs. Every other
-subcommand falls through to the real binary unchanged.
 
 ### Search and pick on demand
 
@@ -156,6 +144,7 @@ Validates the schema, required CLI tools (`git` always, `gh` when a `type: 'gith
 forgemap shell-init --install        # cd wrapper + completion → your rc file (idempotent)
 forgemap completion --install        # completion only, if you don't want the cd wrapper
 forgemap shell-init                  # print the wrapper (manual: eval "$(…)")
+forgemap shell-init fish | source    # fish: source the wrapper directly
 forgemap completion bash             # print the completion script for bash/zsh/fish
 ```
 
@@ -167,6 +156,8 @@ forgemap completion bash             # print the completion script for bash/zsh/
 forgemap config init                 # write a starter forgemap.config.ts
 forgemap config show                 # print the resolved config + which file it came from
 ```
+
+</details>
 
 ## ⚙️ Configuration
 
@@ -194,6 +185,14 @@ export default defineForgeMapConfig({
 });
 ```
 
+The config is discovered by walking **up** from your current directory (so `forgemap cd` works from inside any clone), then falling back to `~/.config/forgemap/`. Override with `--config <path>` or the `FORGEMAP_CONFIG` env var.
+
+> [!TIP]
+> Already have a directory full of repos? Skip writing this by hand — `forgemap import <path>` derives `root` + `forges` from the existing layout.
+
+<details>
+<summary><strong>All configuration options</strong></summary>
+
 | Key                  | What it controls                                                                                          |
 | :------------------- | :-------------------------------------------------------------------------------------------------------- |
 | `root`               | Base directory for all clones. Relative paths resolve against the config file's directory.                |
@@ -205,10 +204,10 @@ export default defineForgeMapConfig({
 
 The config file is discovered by walking **up** from your current directory (so `forgemap cd` works from inside any clone, not just the root), then falling back to a global `$XDG_CONFIG_HOME/forgemap/forgemap.config.*` (i.e. `~/.config/forgemap/`) so commands work from anywhere. Override with `--config <path>` or the `FORGEMAP_CONFIG` env var.
 
-> [!TIP]
-> Already have a directory full of repos? Skip writing this by hand — `forgemap import <path>` derives `root` + `forges` from the existing layout.
+</details>
 
-## 🗂️ Layout
+<details>
+<summary><strong>Repo layout &amp; slug syntax</strong></summary>
 
 ```
 <root>/
@@ -229,8 +228,6 @@ Example with the default config rooted at `~/projects`:
         └── forgemap/
 ```
 
-## 🚪 Slug syntax
-
 | Form                                | Resolves to                                            |
 | :---------------------------------- | :----------------------------------------------------- |
 | `kirchDev/laravel-pbac`             | Default forge, `kirchDev/laravel-pbac`.                |
@@ -239,7 +236,14 @@ Example with the default config rooted at `~/projects`:
 | `https://github.com/foo/bar.git`    | Same, `.git` suffix stripped.                          |
 | `git@github.com:foo/bar.git`        | SSH form, host matched against `forges[].host`.        |
 
-## 🧪 Testing
+</details>
+
+## 🤝 Contributing
+
+PRs welcome. Conventional Commits required (enforced via commitlint); Husky runs lint-staged on every commit. Run `pnpm check:fix` before pushing — CI will catch what husky missed.
+
+<details>
+<summary><strong>Dev scripts</strong></summary>
 
 ```bash
 pnpm install
@@ -251,12 +255,7 @@ pnpm bench        # microbench scanRepos / cache hit / cache rebuild
 
 Tune the bench layout via env vars (`FORGEMAP_BENCH_FORGES`, `FORGEMAP_BENCH_OWNERS`, `FORGEMAP_BENCH_REPOS`, `FORGEMAP_BENCH_RUNS`).
 
-## 🤝 Contributing
-
-PRs welcome. Conventional Commits required (enforced via commitlint). Husky runs lint-staged on every commit.
-
-> [!TIP]
-> Run `pnpm check:fix` before pushing — CI will catch what husky missed.
+</details>
 
 ## 🛣️ Versioning
 
