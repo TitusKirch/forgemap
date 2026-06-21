@@ -59,7 +59,9 @@ export default defineConfig({
         'src/config/schema.ts',
         'src/forges/types.ts'
       ],
-      reporter: ['text', 'lcov', 'html'],
+      // text+html for local use; json + json-summary feed the PR-comment action
+      // (davelosert/vitest-coverage-report-action). No lcov (was only for Codecov).
+      reporter: ['text', 'html', 'json', 'json-summary'],
       reportsDirectory: 'coverage',
       thresholds: {
         statements: 90,
