@@ -35,8 +35,8 @@ This repo mirrors the kirchDev scaffold (`../scaffold/`). Treat that repo as the
 - **Conventional Commits enforced.** Commitlint runs in the `commit-msg` hook. Use `feat:`, `fix:`, `chore:`, `docs:`, etc. Breaking changes: `feat!:` or `BREAKING CHANGE:` in the body.
 - **Husky hooks are required.** Don't `--no-verify` unless explicitly asked. `pre-commit` runs lint-staged (oxlint + oxfmt on staged files); `commit-msg` runs commitlint.
 - **`README.md` is excluded from oxfmt** (`.oxfmtrc.json` `ignorePatterns`). The kirchDev README house style relies on centered HTML blocks that the formatter would mangle — don't try to reformat it.
-- **pnpm 11 with `node-linker=isolated`** and `prefer-frozen-lockfile=true` (see `.npmrc`). Always commit `pnpm-lock.yaml` changes.
-- **`minimumReleaseAge=4320`** (3 days) in `.npmrc` — fresh package versions are blocked from install. If a new release is needed urgently, lower or override locally; don't change the global default.
+- **pnpm 11 with `node-linker=isolated`** and `prefer-frozen-lockfile=true` (see `pnpm-workspace.yaml`). Always commit `pnpm-lock.yaml` changes.
+- **`minimumReleaseAge=4320`** (3 days) in `pnpm-workspace.yaml` — fresh package versions are blocked from install. If a new release is needed urgently, lower or override locally; don't change the global default.
 
 ## Releases
 
