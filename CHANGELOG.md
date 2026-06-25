@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/TitusKirch/forgemap/compare/v0.4.1...v0.4.2) (2026-06-25)
+
+
+### Bug Fixes
+
+* **dependabot:** match managed area:* label names ([4804d8e](https://github.com/TitusKirch/forgemap/commit/4804d8eaba0a5f6e6f8e321bd5f965d93384c6ec))
+
 ## [0.4.1](https://github.com/TitusKirch/forgemap/compare/v0.4.0...v0.4.1) (2026-05-27)
 
 
