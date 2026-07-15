@@ -1,6 +1,8 @@
 import { builtinModules } from 'node:module';
 import { resolve } from 'node:path';
-import { defineConfig } from 'vite';
+// From vitest/config, not vite: vitest 4 no longer augments vite's UserConfig
+// with the `test` key, so vite's own defineConfig rejects it.
+import { defineConfig } from 'vitest/config';
 
 const nodeBuiltins = new Set([
   ...builtinModules,
