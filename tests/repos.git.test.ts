@@ -3,9 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  countStashes,
   fetchRepo,
   getLastCommitUnix,
   getRepoStatus,
+  hasStashes,
   hasUnpushedCommits,
   isClean,
   pullRepo
@@ -99,6 +101,58 @@ describe('repos/git', () => {
     expect(typeof ts).toBe('number');
     // The init commit was just made; within a minute of now.
     expect(Math.abs(Date.now() / 1000 - (ts as number))).toBeLessThan(60);
+  });
+
+  it('countStashes/hasStashes count the entries on the stash', async () => {
+    expect(await countStashes(dir)).toBe(0);
+    expect(await hasStashes(dir)).toBe(false);
+
+    await writeFile(join(dir, 'README.md'), 'work in progress\n');
+    await git(dir, ['stash', 'push', '--quiet']);
+    expect(await countStashes(dir)).toBe(1);
+    expect(await hasStashes(dir)).toBe(true);
+
+    await writeFile(join(dir, 'README.md'), 'more work in progress\n');
+    await git(dir, ['stash', 'push', '--quiet']);
+    expect(await countStashes(dir)).toBe(2);
+  });
+
+  it('countStashes is not inflated by a newline in the stash message', async () => {
+    await writeFile(join(dir, 'README.md'), 'work in progress\n');
+    await git(dir, ['stash', 'push', '--quiet', '-m', 'multi\nline message']);
+    expect(await countStashes(dir)).toBe(1);
+  });
+
+  it('getRepoStatus reports the stash count', async () => {
+    expect((await getRepoStatus(dir)).stashes).toBe(0);
+    await writeFile(join(dir, 'README.md'), 'work in progress\n');
+    await git(dir, ['stash', 'push', '--quiet']);
+    expect((await getRepoStatus(dir)).stashes).toBe(1);
+  });
+
+  // The blind spot behind issue #52: once stashed, the work leaves no trace in
+  // the working tree and no commit on refs/heads, so every pre-existing local
+  // check reports "clean and fully pushed". Only the stash check sees it.
+  it('sees stashed work that the dirty and unpushed checks cannot', async () => {
+    const remoteDir = await mkdtemp(join(tmpdir(), 'forgemap-git-remote-'));
+    try {
+      await git(remoteDir, ['init', '--bare', '--quiet', '-b', 'main']);
+      await git(dir, ['remote', 'add', 'origin', remoteDir]);
+      await git(dir, ['push', '--quiet', '-u', 'origin', 'main']);
+
+      await writeFile(join(dir, 'README.md'), 'precious uncommitted work\n');
+      await git(dir, ['stash', 'push', '--quiet']);
+
+      const s = await getRepoStatus(dir);
+      expect(s.dirty).toBe(false);
+      expect(await isClean(dir)).toBe(true);
+      expect(await hasUnpushedCommits(dir)).toBe(false);
+      // ...yet the work is still there, on refs/stash.
+      expect(s.stashes).toBe(1);
+      expect(await hasStashes(dir)).toBe(true);
+    } finally {
+      await rm(remoteDir, { recursive: true, force: true });
+    }
   });
 
   it('hasUnpushedCommits is true with no remote, false once pushed', async () => {

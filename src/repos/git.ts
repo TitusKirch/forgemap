@@ -7,6 +7,8 @@ export interface RepoStatus {
   dirty: boolean;
   ahead: number;
   behind: number;
+  /** Entries on `refs/stash` — local work no other field reports. */
+  stashes: number;
   lastCommit: { sha: string; relativeDate: string } | null;
 }
 
@@ -37,6 +39,7 @@ export async function getRepoStatus(localPath: string): Promise<RepoStatus> {
     dirty: false,
     ahead: 0,
     behind: 0,
+    stashes: 0,
     lastCommit: null
   };
 
@@ -46,6 +49,8 @@ export async function getRepoStatus(localPath: string): Promise<RepoStatus> {
 
   const porcelain = await gitIn(localPath, ['status', '--porcelain']);
   status.dirty = porcelain.stdout.trim().length > 0;
+
+  status.stashes = await countStashes(localPath);
 
   // ahead/behind only meaningful with an upstream
   const aheadBehind = await gitIn(localPath, [
@@ -165,4 +170,28 @@ export async function hasUnpushedCommits(localPath: string): Promise<boolean> {
   ]);
   if (result.code !== 0) return true;
   return result.stdout.trim().length > 0;
+}
+
+/**
+ * Number of entries on the stash. Stashed work is invisible to every other
+ * local check: `git status --porcelain` reports no working-tree change once
+ * the stash is taken, and stash commits live on `refs/stash`, so
+ * `git log --branches` (staleness) and `--branches --not --remotes`
+ * (unpushed) skip them too. A repo whose only local work is stashed therefore
+ * looks clean, idle and fully pushed unless this is checked explicitly.
+ *
+ * `%gd` prints one bare `stash@{n}` per entry, so a stash message containing
+ * a newline cannot inflate the count. Returns 0 when the stash is unreadable
+ * (e.g. not a git repo) — callers gate on `isGitRepo` first.
+ */
+export async function countStashes(localPath: string): Promise<number> {
+  const result = await gitIn(localPath, ['stash', 'list', '--format=%gd']);
+  if (result.code !== 0) return 0;
+  return result.stdout.split('\n').filter((line) => line.trim().length > 0)
+    .length;
+}
+
+/** True when the repo has any stashed work. See {@link countStashes}. */
+export async function hasStashes(localPath: string): Promise<boolean> {
+  return (await countStashes(localPath)) > 0;
 }
