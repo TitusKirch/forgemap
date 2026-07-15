@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { searchCommand } from '../src/commands/search.ts';
+import { runCli } from './helpers/citty.ts';
 
 const FIXTURE_CONFIG = `export default {
   root: '.',
@@ -113,6 +114,11 @@ describe('searchCommand', () => {
     );
   });
 
+  // An injected `filter: [...]` is a shape citty can never actually produce —
+  // `parseArgs` keeps only the last occurrence of a repeated option. It still
+  // pins `normalizeFilters`' array handling, which is how the command is
+  // driven programmatically; the argv-level counterpart lives in the 'citty
+  // argument parsing' block below.
   it('--filter is OR-combined when repeated', async () => {
     const lines = await runSearch(dir, 'forgemap', {
       filter: ['kirchDev', 'TitusKirch'],
@@ -134,5 +140,56 @@ describe('searchCommand', () => {
   it('prints nothing on no matches (exit 0)', async () => {
     const lines = await runSearch(dir, 'zzz-no-such-thing-zzz');
     expect(lines).toEqual([]);
+  });
+
+  // Issue #59: `--filter` is the one search flag whose parsing is non-trivial
+  // (repeatable, and citty declares it without `multiple: true`), so it is
+  // only meaningful when driven through real argv.
+  describe('citty argument parsing', () => {
+    async function runArgv(rawArgs: string[]): Promise<string[]> {
+      const { lines } = await runCli(searchCommand, [
+        ...rawArgs,
+        '--config',
+        join(dir, 'forgemap.config.ts')
+      ]);
+      return lines;
+    }
+
+    it('OR-combines a repeated --filter', async () => {
+      const lines = await runArgv([
+        'forgemap',
+        '--format',
+        'slug',
+        '--filter',
+        'kirchDev',
+        '--filter',
+        'TitusKirch'
+      ]);
+      expect(lines.sort()).toEqual([
+        'TitusKirch/forgemap',
+        'kirchDev/forgemap-php'
+      ]);
+    });
+
+    it('applies a single --filter', async () => {
+      const lines = await runArgv([
+        'forgemap',
+        '--format',
+        'slug',
+        '--filter',
+        'kirchDev'
+      ]);
+      expect(lines).toEqual(['kirchDev/forgemap-php']);
+    });
+
+    it('supports the --filter=value form', async () => {
+      const lines = await runArgv([
+        'forgemap',
+        '--format',
+        'slug',
+        '--filter=kirchDev'
+      ]);
+      expect(lines).toEqual(['kirchDev/forgemap-php']);
+    });
   });
 });
