@@ -5,6 +5,7 @@ import Fuse from 'fuse.js';
 import { dirname } from 'pathe';
 import { loadForgeMapConfig } from '../config/load.ts';
 import { scanReposCached } from '../repos/cache.ts';
+import { filterArg, filterRepos, resolveFilters } from '../repos/filter.ts';
 import { fetchRepo, isClean, pullRepo } from '../repos/git.ts';
 import type { ScannedRepo } from '../repos/scan.ts';
 
@@ -59,6 +60,7 @@ export const syncCommand = defineCommand({
       type: 'string',
       description: 'Restrict to a single forge alias'
     },
+    filter: filterArg,
     query: {
       type: 'string',
       description: 'Fuzzy filter against <owner>/<repo>'
@@ -73,7 +75,7 @@ export const syncCommand = defineCommand({
       description: 'Path to forgemap.config.ts (overrides walk-up discovery)'
     }
   },
-  async run({ args }) {
+  async run({ args, rawArgs }) {
     const loaded = await loadForgeMapConfig({ configFile: args.config });
     const configDir = loaded.configFile
       ? dirname(loaded.configFile)
@@ -87,6 +89,7 @@ export const syncCommand = defineCommand({
     if (args.forge) {
       repos = repos.filter((r) => r.forgeName === args.forge);
     }
+    repos = filterRepos(repos, resolveFilters(rawArgs, args.filter));
     if (args.query) {
       const fuse = new Fuse(repos, {
         keys: ['slug', 'owner', 'repo'],
