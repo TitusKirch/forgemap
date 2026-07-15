@@ -1,8 +1,7 @@
 import { defineCommand } from 'citty';
-import { loadForgeMapConfig } from '../config/load.ts';
 import { dirname } from 'pathe';
-import { parseSlug } from '../slug/parse.ts';
-import { resolveSlug } from '../slug/resolve.ts';
+import { loadForgeMapConfig } from '../config/load.ts';
+import { resolveRepoPath } from '../slug/locate.ts';
 
 export const pathCommand = defineCommand({
   meta: {
@@ -12,7 +11,8 @@ export const pathCommand = defineCommand({
   args: {
     slug: {
       type: 'positional',
-      description: 'owner/repo, forge:owner/repo, or full URL',
+      description:
+        'owner/repo, forge:owner/repo, full URL, or a fuzzy query matched against cloned repos',
       required: true
     },
     config: {
@@ -22,14 +22,17 @@ export const pathCommand = defineCommand({
   },
   async run({ args }) {
     const loaded = await loadForgeMapConfig({ configFile: args.config });
-    const parsed = parseSlug(args.slug);
     const configDir = loaded.configFile
       ? dirname(loaded.configFile)
       : loaded.cwd;
-    const resolved = resolveSlug(parsed, {
+    const localPath = await resolveRepoPath(args.slug, {
       config: loaded.config,
       configDir
     });
-    process.stdout.write(`${resolved.localPath}\n`);
+    if (!localPath) {
+      process.exitCode = 1;
+      return;
+    }
+    process.stdout.write(`${localPath}\n`);
   }
 });

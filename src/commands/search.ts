@@ -1,9 +1,9 @@
 import { defineCommand } from 'citty';
 import consola from 'consola';
 import { colors, formatTree } from 'consola/utils';
-import Fuse from 'fuse.js';
 import { dirname } from 'pathe';
 import { loadForgeMapConfig } from '../config/load.ts';
+import { matchRepos } from '../repos/match.ts';
 import { type ScannedRepo, scanRepos } from '../repos/scan.ts';
 
 type Format = 'auto' | 'pretty' | 'path' | 'slug';
@@ -69,16 +69,8 @@ export const searchCommand = defineCommand({
       : loaded.cwd;
     const repos = await scanRepos({ config: loaded.config, configDir });
 
-    const fuse = new Fuse(repos, {
-      keys: ['slug', 'owner', 'repo'],
-      threshold: 0.3,
-      ignoreLocation: true,
-      includeScore: true
-    });
-
     const limit = args.limit ? Number.parseInt(args.limit, 10) : undefined;
-    const results = fuse.search(args.query, limit ? { limit } : undefined);
-    const items = results.map((r) => r.item);
+    const items = matchRepos(repos, args.query, limit);
 
     const allowed: Format[] = ['auto', 'pretty', 'path', 'slug'];
     if (!allowed.includes(args.format as Format)) {
