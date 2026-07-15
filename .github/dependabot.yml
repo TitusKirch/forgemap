@@ -15,6 +15,15 @@ updates:
       - 'dependencies'
       - 'stack: javascript'
     groups:
+      # vitest and @vitest/* are version-locked siblings: @vitest/coverage-v8
+      # imports internals from vitest itself, so a mismatched pair fails at
+      # startup. They must move together on EVERY update type — a major is
+      # outside npm-minor-patch below, which would split them into one PR per
+      # package. Listed first so it wins the group match.
+      vitest:
+        patterns:
+          - 'vitest'
+          - '@vitest/*'
       npm-minor-patch:
         patterns:
           - '*'
