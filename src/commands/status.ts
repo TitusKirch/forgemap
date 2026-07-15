@@ -25,6 +25,9 @@ function statusLine(row: Row): string {
   if (s.behind > 0) aheadBehind.push(colors.yellow(`↓${s.behind}`));
   if (aheadBehind.length > 0) parts.push(aheadBehind.join(' '));
   parts.push(s.dirty ? colors.red('●') : colors.green('✓'));
+  // Stashed work is invisible to every other marker here — surface it before
+  // it matters (e.g. before `cleanup` considers the repo).
+  if (s.stashes > 0) parts.push(colors.yellow(`⚑${s.stashes}`));
   parts.push(colors.gray(s.branch));
   if (s.lastCommit) {
     parts.push(colors.dim(`${s.lastCommit.sha} ${s.lastCommit.relativeDate}`));
