@@ -105,6 +105,32 @@ describe('searchCommand', () => {
     expect(lines).toHaveLength(1);
   });
 
+  it('--filter narrows the searched set to a matching owner', async () => {
+    const lines = await runSearch(dir, 'forgemap', { filter: 'kirchDev' });
+    expect(lines).toContain(join(dir, 'comGithub', 'kirchDev', 'forgemap-php'));
+    expect(lines).not.toContain(
+      join(dir, 'comGithub', 'TitusKirch', 'forgemap')
+    );
+  });
+
+  it('--filter is OR-combined when repeated', async () => {
+    const lines = await runSearch(dir, 'forgemap', {
+      filter: ['kirchDev', 'TitusKirch'],
+      format: 'slug'
+    });
+    expect(lines).toContain('kirchDev/forgemap-php');
+    expect(lines).toContain('TitusKirch/forgemap');
+  });
+
+  it('--filter applies before --limit', async () => {
+    const lines = await runSearch(dir, 'forgemap', {
+      filter: 'kirchDev',
+      format: 'slug',
+      limit: '5'
+    });
+    expect(lines).toEqual(['kirchDev/forgemap-php']);
+  });
+
   it('prints nothing on no matches (exit 0)', async () => {
     const lines = await runSearch(dir, 'zzz-no-such-thing-zzz');
     expect(lines).toEqual([]);

@@ -104,6 +104,19 @@ describe('syncCommand', () => {
     expect(fetchRepoMock.mock.calls[0]![0]).toContain('team/api');
   });
 
+  it('--filter restricts to a matching owner', async () => {
+    const exit = await runSync(dir, { filter: 'team' });
+    expect(exit).toBeUndefined();
+    expect(fetchRepoMock).toHaveBeenCalledTimes(1);
+    expect(fetchRepoMock.mock.calls[0]![0]).toContain('team/api');
+  });
+
+  it('--filter is OR-combined when repeated', async () => {
+    const exit = await runSync(dir, { filter: ['foo', 'team'] });
+    expect(exit).toBeUndefined();
+    expect(fetchRepoMock).toHaveBeenCalledTimes(3);
+  });
+
   it('exits 1 when any fetch fails', async () => {
     fetchRepoMock.mockImplementation(async (p: string) =>
       p.includes('foo/a')

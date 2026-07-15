@@ -100,7 +100,12 @@ forgemap sync --forge work --query api  # restrict scope
 
 forgemap status                      # tree: branch / dirty / ahead↑ / behind↓ / last commit
 forgemap status --format json        # structured for jq + scripts
+
+# --filter keeps only matching owners/forges. Repeatable, OR-combined.
+forgemap status --format json --filter kirchDev --filter TitusKirch
 ```
+
+`--filter` works on `status`, `sync` and `search`. It matches an **owner** or a **forge name** exactly (case-insensitive) — unlike `--query`, which is fuzzy.
 
 All tree output (`status`, `search`, `import`) groups as `forge → owner → repo`. Network operations (`sync`, `import`, `cleanup`) run with a hard timeout and non-interactive SSH, so an unreachable host can never wedge a run.
 
