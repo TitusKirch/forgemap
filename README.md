@@ -83,7 +83,8 @@ forgemap pick kirch                 # picker pre-filtered by fuzzy query
 ### Open the folder in the OS file manager
 
 ```bash
-forgemap open kirchDev/laravel-pbac
+forgemap open kirchDev/laravel-pbac      # exact slug
+forgemap open laravel                    # fuzzy single match → same folder
 ```
 
 - **WSL** → launches `explorer.exe` against `\\wsl$\<distro>\…`, Explorer opens the folder
