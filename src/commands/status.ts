@@ -82,10 +82,11 @@ export const statusCommand = defineCommand({
       type: 'string',
       description: 'Fuzzy filter against <owner>/<repo>'
     },
-    'no-cache': {
+    cache: {
       type: 'boolean',
-      description: 'Skip the scanned-repos cache',
-      default: false
+      description: 'Use the scanned-repos cache',
+      negativeDescription: 'Skip the scanned-repos cache',
+      default: true
     },
     config: {
       type: 'string',
@@ -108,7 +109,7 @@ export const statusCommand = defineCommand({
     let repos = await scanReposCached({
       config: loaded.config,
       configDir,
-      useCache: !args['no-cache']
+      useCache: args.cache
     });
 
     if (args.forge) {

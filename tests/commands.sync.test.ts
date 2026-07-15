@@ -1,7 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { runCli } from './helpers/citty.ts';
 
 const { fetchRepoMock, pullRepoMock, isCleanMock } = vi.hoisted(() => ({
   fetchRepoMock: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock('../src/repos/git.ts', () => ({
 }));
 
 import { syncCommand } from '../src/commands/sync.ts';
+import { __test } from '../src/repos/cache.ts';
 
 const FIXTURE_CONFIG = `export default {
   root: '.',
@@ -45,7 +47,7 @@ async function runSync(
   await syncCommand.run!({
     args: {
       config: join(dir, 'forgemap.config.ts'),
-      'no-cache': true,
+      cache: false,
       pull: false,
       sequential: false,
       ...extra,
@@ -60,9 +62,16 @@ async function runSync(
 
 describe('syncCommand', () => {
   let dir: string;
+  let cacheDir: string;
+  let originalCacheHome: string | undefined;
 
   beforeEach(async () => {
     dir = await setup();
+    // Keep the scan cache inside the fixture rather than the user's real
+    // ~/.cache/forgemap.
+    cacheDir = await mkdtemp(join(tmpdir(), 'forgemap-sync-cache-'));
+    originalCacheHome = process.env.XDG_CACHE_HOME;
+    process.env.XDG_CACHE_HOME = cacheDir;
     fetchRepoMock.mockReset();
     pullRepoMock.mockReset();
     isCleanMock.mockReset();
@@ -73,6 +82,9 @@ describe('syncCommand', () => {
 
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
+    await rm(cacheDir, { recursive: true, force: true });
+    if (originalCacheHome === undefined) delete process.env.XDG_CACHE_HOME;
+    else process.env.XDG_CACHE_HOME = originalCacheHome;
     process.exitCode = undefined;
   });
 
@@ -155,5 +167,69 @@ describe('syncCommand', () => {
     const exit = await runSync(dir, { sequential: true });
     expect(exit).toBeUndefined();
     expect(fetchRepoMock).toHaveBeenCalledTimes(3);
+  });
+
+  // Issue #59: everything above injects `args` straight into the handler, so
+  // citty never parses anything. The flags whose parsing is non-trivial —
+  // a repeatable `--filter` and a negated `--no-cache` — are only honest on
+  // this path, so they are asserted through real argv here.
+  describe('citty argument parsing', () => {
+    async function runArgv(rawArgs: string[]) {
+      return runCli(syncCommand, [
+        '--config',
+        join(dir, 'forgemap.config.ts'),
+        ...rawArgs
+      ]);
+    }
+
+    /** A repo present only in the cache file, never on disk. */
+    async function seedCache(): Promise<void> {
+      const file = __test.cachePath(dir);
+      await mkdir(dirname(file), { recursive: true });
+      await writeFile(
+        file,
+        JSON.stringify({
+          fingerprint: 'seeded',
+          writtenAt: Date.now(),
+          repos: [
+            {
+              forgeName: 'github',
+              forge: { type: 'github', host: 'github.com', dir: 'comGithub' },
+              owner: 'ghost',
+              repo: 'cached-only',
+              localPath: join(dir, 'comGithub', 'ghost', 'cached-only'),
+              slug: 'ghost/cached-only'
+            }
+          ]
+        }),
+        'utf8'
+      );
+    }
+
+    it('OR-combines a repeated --filter', async () => {
+      await runArgv(['--no-cache', '--filter', 'foo', '--filter', 'team']);
+      expect(fetchRepoMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('applies a single --filter', async () => {
+      await runArgv(['--no-cache', '--filter', 'team']);
+      expect(fetchRepoMock).toHaveBeenCalledTimes(1);
+      expect(fetchRepoMock.mock.calls[0]![0]).toContain('team/api');
+    });
+
+    it('serves the cached repos when the cache is left on', async () => {
+      await seedCache();
+      await runArgv([]);
+      expect(fetchRepoMock).toHaveBeenCalledTimes(1);
+      expect(fetchRepoMock.mock.calls[0]![0]).toContain('ghost/cached-only');
+    });
+
+    it('rescans and ignores the cache when --no-cache is passed', async () => {
+      await seedCache();
+      await runArgv(['--no-cache']);
+      expect(fetchRepoMock).toHaveBeenCalledTimes(3);
+      const paths = fetchRepoMock.mock.calls.map((c) => c[0] as string);
+      expect(paths.some((p) => p.includes('ghost'))).toBe(false);
+    });
   });
 });
