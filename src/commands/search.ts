@@ -1,9 +1,10 @@
 import { defineCommand } from 'citty';
 import consola from 'consola';
 import { colors, formatTree } from 'consola/utils';
-import Fuse from 'fuse.js';
 import { dirname } from 'pathe';
 import { loadForgeMapConfig } from '../config/load.ts';
+import { filterArg, filterRepos, resolveFilters } from '../repos/filter.ts';
+import { matchRepos } from '../repos/match.ts';
 import { type ScannedRepo, scanRepos } from '../repos/scan.ts';
 
 type Format = 'auto' | 'pretty' | 'path' | 'slug';
@@ -53,6 +54,7 @@ export const searchCommand = defineCommand({
         'Output format: auto (default), pretty, path, or slug. auto picks pretty in a TTY, path when piped.',
       default: 'auto'
     },
+    filter: filterArg,
     limit: {
       type: 'string',
       description: 'Maximum number of matches to print (default: unlimited)'
@@ -62,23 +64,17 @@ export const searchCommand = defineCommand({
       description: 'Path to forgemap.config.ts (overrides walk-up discovery)'
     }
   },
-  async run({ args }) {
+  async run({ args, rawArgs }) {
     const loaded = await loadForgeMapConfig({ configFile: args.config });
     const configDir = loaded.configFile
       ? dirname(loaded.configFile)
       : loaded.cwd;
-    const repos = await scanRepos({ config: loaded.config, configDir });
-
-    const fuse = new Fuse(repos, {
-      keys: ['slug', 'owner', 'repo'],
-      threshold: 0.3,
-      ignoreLocation: true,
-      includeScore: true
-    });
+    const scanned = await scanRepos({ config: loaded.config, configDir });
+    // Narrow before searching, so --limit counts matches within the filtered set.
+    const repos = filterRepos(scanned, resolveFilters(rawArgs, args.filter));
 
     const limit = args.limit ? Number.parseInt(args.limit, 10) : undefined;
-    const results = fuse.search(args.query, limit ? { limit } : undefined);
-    const items = results.map((r) => r.item);
+    const items = matchRepos(repos, args.query, limit);
 
     const allowed: Format[] = ['auto', 'pretty', 'path', 'slug'];
     if (!allowed.includes(args.format as Format)) {

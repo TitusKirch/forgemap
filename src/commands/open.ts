@@ -3,8 +3,7 @@ import { defineCommand } from 'citty';
 import consola from 'consola';
 import { dirname } from 'pathe';
 import { loadForgeMapConfig } from '../config/load.ts';
-import { parseSlug } from '../slug/parse.ts';
-import { resolveSlug } from '../slug/resolve.ts';
+import { resolveRepoPath } from '../slug/locate.ts';
 
 interface OpenInvocation {
   cmd: string;
@@ -32,7 +31,8 @@ export const openCommand = defineCommand({
   args: {
     slug: {
       type: 'positional',
-      description: 'owner/repo, forge:owner/repo, or full URL',
+      description:
+        'owner/repo, forge:owner/repo, full URL, or a fuzzy query matched against cloned repos',
       required: true
     },
     config: {
@@ -42,17 +42,20 @@ export const openCommand = defineCommand({
   },
   async run({ args }) {
     const loaded = await loadForgeMapConfig({ configFile: args.config });
-    const parsed = parseSlug(args.slug);
     const configDir = loaded.configFile
       ? dirname(loaded.configFile)
       : loaded.cwd;
-    const resolved = resolveSlug(parsed, {
+    const localPath = await resolveRepoPath(args.slug, {
       config: loaded.config,
       configDir
     });
+    if (!localPath) {
+      process.exitCode = 1;
+      return;
+    }
 
-    const { cmd, args: cmdArgs } = platformOpen(resolved.localPath);
-    consola.info(`Opening ${resolved.localPath}`);
+    const { cmd, args: cmdArgs } = platformOpen(localPath);
+    consola.info(`Opening ${localPath}`);
 
     const child = spawn(cmd, cmdArgs, {
       stdio: 'ignore',

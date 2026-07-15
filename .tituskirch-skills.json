@@ -22,5 +22,21 @@
   },
   "docs": {
     "preset": "cli"
+  },
+  "work": {
+    "verify": "pnpm check && pnpm typecheck && pnpm test && pnpm build",
+    "labels": {
+      "ready": "ai: ready",
+      "working": "ai: working",
+      "review": "ai: review",
+      "done": "ai: done",
+      "blocked": "ai: blocked"
+    },
+    "priorityLabels": [
+      "priority: urgent",
+      "priority: high",
+      "priority: medium",
+      "priority: low"
+    ]
   }
 }

@@ -1,6 +1,7 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { runCommand } from 'citty';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { spawnMock } = vi.hoisted(() => ({ spawnMock: vi.fn() }));
@@ -34,13 +35,11 @@ function fakeChild() {
   };
 }
 
+/** Driven through citty's real argument parsing, not an injected args object. */
 async function runOpen(dir: string, slug: string): Promise<void> {
-  await openCommand.run!({
-    args: { slug, config: join(dir, 'forgemap.config.ts'), _: [slug] },
-    rawArgs: [slug],
-    cmd: openCommand,
-    data: undefined
-  } as never);
+  await runCommand(openCommand, {
+    rawArgs: [slug, '--config', join(dir, 'forgemap.config.ts')]
+  });
 }
 
 describe('openCommand', () => {
@@ -50,6 +49,12 @@ describe('openCommand', () => {
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'forgemap-open-'));
     await writeFile(join(dir, 'forgemap.config.ts'), FIXTURE_CONFIG, 'utf8');
+    await mkdir(join(dir, 'comGithub', 'kirchDev', 'gildmaster'), {
+      recursive: true
+    });
+    await mkdir(join(dir, 'comGithub', 'acme', 'gildhall'), {
+      recursive: true
+    });
     spawnMock.mockReset();
     spawnMock.mockReturnValue(fakeChild());
     originalDistro = process.env.WSL_DISTRO_NAME;
@@ -95,6 +100,25 @@ describe('openCommand', () => {
     const err = new Error('not found') as NodeJS.ErrnoException;
     err.code = 'ENOENT';
     handlers.get('error')?.(err);
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined;
+  });
+
+  it('opens the single repo a bare fuzzy term matches', async () => {
+    delete process.env.WSL_DISTRO_NAME;
+    await runOpen(dir, 'gildmaster');
+
+    const [cmd, args] = spawnMock.mock.calls[0]!;
+    expect(cmd).toBe('xdg-open');
+    expect(args[0]).toBe(join(dir, 'comGithub', 'kirchDev', 'gildmaster'));
+  });
+
+  it('opens nothing when a fuzzy term is ambiguous', async () => {
+    delete process.env.WSL_DISTRO_NAME;
+    process.exitCode = undefined;
+    await runOpen(dir, 'gild');
+
+    expect(spawnMock).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
     process.exitCode = undefined;
   });

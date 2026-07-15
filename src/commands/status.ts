@@ -5,6 +5,7 @@ import Fuse from 'fuse.js';
 import { dirname } from 'pathe';
 import { loadForgeMapConfig } from '../config/load.ts';
 import { scanReposCached } from '../repos/cache.ts';
+import { filterArg, filterRepos, resolveFilters } from '../repos/filter.ts';
 import { getRepoStatus, type RepoStatus } from '../repos/git.ts';
 import type { ScannedRepo } from '../repos/scan.ts';
 
@@ -25,6 +26,9 @@ function statusLine(row: Row): string {
   if (s.behind > 0) aheadBehind.push(colors.yellow(`↓${s.behind}`));
   if (aheadBehind.length > 0) parts.push(aheadBehind.join(' '));
   parts.push(s.dirty ? colors.red('●') : colors.green('✓'));
+  // Stashed work is invisible to every other marker here — surface it before
+  // it matters (e.g. before `cleanup` considers the repo).
+  if (s.stashes > 0) parts.push(colors.yellow(`⚑${s.stashes}`));
   parts.push(colors.gray(s.branch));
   if (s.lastCommit) {
     parts.push(colors.dim(`${s.lastCommit.sha} ${s.lastCommit.relativeDate}`));
@@ -73,6 +77,7 @@ export const statusCommand = defineCommand({
       type: 'string',
       description: 'Restrict to a single forge alias'
     },
+    filter: filterArg,
     query: {
       type: 'string',
       description: 'Fuzzy filter against <owner>/<repo>'
@@ -87,7 +92,7 @@ export const statusCommand = defineCommand({
       description: 'Path to forgemap.config.ts (overrides walk-up discovery)'
     }
   },
-  async run({ args }) {
+  async run({ args, rawArgs }) {
     if (!ALLOWED_FORMATS.includes(args.format)) {
       consola.error(
         `Invalid --format value "${args.format}". Allowed: ${ALLOWED_FORMATS.join(', ')}.`
@@ -109,6 +114,7 @@ export const statusCommand = defineCommand({
     if (args.forge) {
       repos = repos.filter((r) => r.forgeName === args.forge);
     }
+    repos = filterRepos(repos, resolveFilters(rawArgs, args.filter));
     if (args.query) {
       const fuse = new Fuse(repos, {
         keys: ['slug', 'owner', 'repo'],

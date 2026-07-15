@@ -15,6 +15,20 @@ function stripGitSuffix(repo: string): string {
   return repo.endsWith('.git') ? repo.slice(0, -4) : repo;
 }
 
+/**
+ * Whether the input is *shaped* like a strict slug. Every form
+ * {@link parseSlug} accepts — `owner/repo`, `forge:owner/repo`, SSH and
+ * URL — contains a `/`, so a bare term like `gild` can never be one and is
+ * free to be treated as a fuzzy query instead.
+ *
+ * Shaped-like is deliberately not the same as valid: `foo/bar/baz` is shaped
+ * like a slug, so it stays a hard parse error rather than silently degrading
+ * into a fuzzy search for something the user clearly meant as a slug.
+ */
+export function looksLikeSlug(input: string): boolean {
+  return input.trim().includes('/');
+}
+
 export function parseSlug(input: string): ParsedSlug {
   const trimmed = input.trim();
   if (!trimmed) {

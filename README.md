@@ -56,7 +56,7 @@ forgemap cd laravel                      # fuzzy match → jump in; bare `forgem
 `forgemap cd` resolves the slug, walks/picks across your cloned repos, and actually changes directory because the shell wrapper from `shell-init` intercepts it before the binary runs. Every other subcommand falls through to the real binary unchanged. Hacking on forgemap itself? See [CONTRIBUTING.md → Trying the CLI locally](CONTRIBUTING.md#trying-the-cli-locally) — covers `pnpm setup`, `pnpm link --global .` and the shell-wrapper source.
 
 <details>
-<summary><strong>All commands</strong> — clone, cd, search, open, sync/status, import, cleanup, validate, shell-init, config</summary>
+<summary><strong>All commands</strong> — clone, cd, search, open, sync/status, import, cleanup, delete, validate, shell-init, config</summary>
 
 ### Clone & jump
 
@@ -83,7 +83,8 @@ forgemap pick kirch                 # picker pre-filtered by fuzzy query
 ### Open the folder in the OS file manager
 
 ```bash
-forgemap open kirchDev/laravel-pbac
+forgemap open kirchDev/laravel-pbac      # exact slug
+forgemap open laravel                    # fuzzy single match → same folder
 ```
 
 - **WSL** → launches `explorer.exe` against `\\wsl$\<distro>\…`, Explorer opens the folder
@@ -99,7 +100,12 @@ forgemap sync --forge work --query api  # restrict scope
 
 forgemap status                      # tree: branch / dirty / ahead↑ / behind↓ / last commit
 forgemap status --format json        # structured for jq + scripts
+
+# --filter keeps only matching owners/forges. Repeatable, OR-combined.
+forgemap status --format json --filter kirchDev --filter TitusKirch
 ```
+
+`--filter` works on `status`, `sync` and `search`. It matches an **owner** or a **forge name** exactly (case-insensitive) — unlike `--query`, which is fuzzy.
 
 All tree output (`status`, `search`, `import`) groups as `forge → owner → repo`. Network operations (`sync`, `import`, `cleanup`) run with a hard timeout and non-interactive SSH, so an unreachable host can never wedge a run.
 
@@ -123,10 +129,22 @@ For each repo `import` compares the folder's `<owner>/<repo>` against the git `o
 forgemap cleanup                     # list deletable clones, then type "yes" to confirm
 forgemap cleanup --dry-run           # show candidates + why every other idle repo is kept
 forgemap cleanup --days 540          # idle threshold in days (default 365)
-forgemap cleanup --include-dirty --include-unpushed   # also delete repos with local-only work (lost!)
+forgemap cleanup --include-dirty --include-unpushed --include-stashed   # also delete repos with local-only work (lost!)
 ```
 
-A repo is only deleted when it is idle for `--days`+ days (by last **local** commit), has a clean working tree, has nothing unpushed, **and** its remote still exists — so everything removed is provably backed up. Repos without a remote (or with a gone/unreachable one) are never touched; empty owner directories left behind are pruned automatically. Deletion needs an explicit typed `yes` (or `--yes`).
+A repo is only deleted when it is idle for `--days`+ days (by last **local** commit), has a clean working tree, has nothing unpushed, has no stashed work, **and** its remote still exists — so everything removed is provably backed up. Repos without a remote (or with a gone/unreachable one) are never touched; empty owner directories left behind are pruned automatically. Deletion needs an explicit typed `yes` (or `--yes`).
+
+### Drop one repo — `delete`
+
+```bash
+forgemap delete kirchDev/laravel-pbac    # gates, then type "yes" to confirm
+forgemap delete github:foo/bar           # forge-qualified slug or full URL
+forgemap delete foo/bar --dry-run        # report the gates; never prompt or delete
+forgemap delete foo/bar --yes            # non-interactive (scripts)
+forgemap delete foo/bar --include-dirty --include-unpushed --include-stashed   # delete local-only work too (lost!)
+```
+
+The targeted counterpart to `cleanup`: same safety gates, no staleness requirement — for the repo you are done with *today*. It runs the identical checks (clean tree, nothing unpushed, no stashed work, remote still exists) and prints the local-only work at stake, naming the branches that carry unpushed commits and the stash count rather than just saying "unpushed". A gone or unreachable remote is a **hard stop that no flag overrides** — that local copy may be the only one left. After deleting, the repo is evicted from the scan cache and emptied owner directories are pruned.
 
 ### Preflight your config
 
