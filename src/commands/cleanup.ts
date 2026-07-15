@@ -69,10 +69,11 @@ export const cleanupCommand = defineCommand({
       description: 'Also delete repos with stashed work (that stash is lost)',
       default: false
     },
-    'no-cache': {
+    cache: {
       type: 'boolean',
-      description: 'Skip the scanned-repos cache',
-      default: false
+      description: 'Use the scanned-repos cache',
+      negativeDescription: 'Skip the scanned-repos cache',
+      default: true
     },
     config: {
       type: 'string',
@@ -94,7 +95,7 @@ export const cleanupCommand = defineCommand({
     let repos = await scanReposCached({
       config: loaded.config,
       configDir,
-      useCache: !args['no-cache']
+      useCache: args.cache
     });
     if (args.forge) repos = repos.filter((r) => r.forgeName === args.forge);
 

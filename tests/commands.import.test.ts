@@ -16,6 +16,7 @@ vi.mock('../src/utils/exec.ts', () => ({
 }));
 
 import { importCommand } from '../src/commands/import.ts';
+import { runCli } from './helpers/citty.ts';
 
 interface RepoState {
   isRepo: boolean;
@@ -209,7 +210,10 @@ describe('importCommand', () => {
     expect(written).toContain("'github.com': {");
   });
 
-  it('suppresses config writing with --no-write-config', async () => {
+  // Issue #59: this injects `write-config: false` directly, so it pins the
+  // handler but never the flag — citty's parsing of `--no-write-config` is
+  // asserted in the 'citty argument parsing' block below.
+  it('suppresses config writing with write-config false', async () => {
     const local = await makeRepo('github.com', 'foo', 'bar');
     repos[local] = { isRepo: true, origin: 'git@github.com:foo/bar.git' };
     ghResponses['foo/bar'] = 'foo/bar';
@@ -255,5 +259,57 @@ describe('importCommand', () => {
     const written = await readFile(join(dir, 'forgemap.config.ts'), 'utf8');
     expect(written).toContain('existing'); // pre-existing forge kept
     expect(written).toContain('comGithub'); // derived forge added
+  });
+
+  // Issue #59: `--remote-check` and `--write-config` default to true, so the
+  // only way a user turns them off is citty's `--no-` negation — a path an
+  // injected `args` object never touches. These are the two negatable
+  // booleans in the CLI; the audit found both parse correctly (they are
+  // declared under their positive name, unlike the `no-cache` flag that did
+  // not), and these tests keep it that way.
+  describe('citty argument parsing', () => {
+    async function runArgv(rawArgs: string[]) {
+      return runCli(importCommand, [dir, ...rawArgs]);
+    }
+
+    async function repoWithRemote() {
+      const local = await makeRepo('github.com', 'foo', 'bar');
+      repos[local] = { isRepo: true, origin: 'git@github.com:foo/bar.git' };
+      ghResponses['foo/bar'] = 'foo/bar';
+    }
+
+    it('--no-write-config suppresses the config write', async () => {
+      await repoWithRemote();
+      await runArgv(['--format', 'json', '--no-write-config']);
+      expect(existsSync(join(dir, 'forgemap.config.ts'))).toBe(false);
+    });
+
+    it('writes the config when --no-write-config is omitted', async () => {
+      await repoWithRemote();
+      await runArgv(['--format', 'json']);
+      expect(existsSync(join(dir, 'forgemap.config.ts'))).toBe(true);
+    });
+
+    it('--no-remote-check skips every remote lookup', async () => {
+      await repoWithRemote();
+      // mock.calls accumulates across this file — only this run should count.
+      execCaptureMock.mockClear();
+      await runArgv([
+        '--format',
+        'json',
+        '--no-write-config',
+        '--no-remote-check'
+      ]);
+      const gh = execCaptureMock.mock.calls.filter((c) => c[0] === 'gh');
+      expect(gh).toHaveLength(0);
+    });
+
+    it('checks remotes when --no-remote-check is omitted', async () => {
+      await repoWithRemote();
+      execCaptureMock.mockClear();
+      await runArgv(['--format', 'json', '--no-write-config']);
+      const gh = execCaptureMock.mock.calls.filter((c) => c[0] === 'gh');
+      expect(gh.length).toBeGreaterThan(0);
+    });
   });
 });

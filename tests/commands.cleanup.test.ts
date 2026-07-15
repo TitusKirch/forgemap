@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import consola from 'consola';
 
@@ -16,8 +16,9 @@ vi.mock('../src/utils/exec.ts', () => ({
   execInherit: vi.fn()
 }));
 
-import { runCommand } from 'citty';
 import { cleanupCommand } from '../src/commands/cleanup.ts';
+import { __test } from '../src/repos/cache.ts';
+import { runCli } from './helpers/citty.ts';
 
 const DAY = 86_400;
 
@@ -59,7 +60,7 @@ async function runCleanup(
         days: '365',
         'dry-run': false,
         yes: false,
-        'no-cache': true,
+        cache: false,
         _: [],
         ...extra
       },
@@ -359,12 +360,14 @@ describe('cleanupCommand', () => {
 
   // runCleanup injects `args` directly, which bypasses citty's real parsing
   // (node:util parseArgs) — a misnamed or unparsable flag would still "work"
-  // there. These two drive the actual parser instead.
+  // there. These drive the actual parser instead.
   describe('citty argument parsing', () => {
     async function runRaw(rawArgs: string[]) {
-      await runCommand(cleanupCommand, {
-        rawArgs: ['--config', join(dir, 'forgemap.config.ts'), ...rawArgs]
-      });
+      return runCli(cleanupCommand, [
+        '--config',
+        join(dir, 'forgemap.config.ts'),
+        ...rawArgs
+      ]);
     }
 
     it('--include-stashed reaches the run through citty', async () => {
@@ -387,6 +390,48 @@ describe('cleanupCommand', () => {
       });
       await runRaw(['--no-cache', '--yes']);
       expect(existsSync(local)).toBe(true);
+    });
+
+    // Issue #59: `--no-cache` used to be declared as an option literally named
+    // `no-cache`. citty strips the `--no-` prefix and negates a `cache` flag,
+    // so that option never went true and the flag did nothing — cleanup would
+    // quietly work off a stale cache. Seeding a cache that knows nothing about
+    // the stale repo separates the two paths.
+    async function seedCacheWithout(): Promise<void> {
+      const file = __test.cachePath(dir);
+      await mkdir(dirname(file), { recursive: true });
+      await writeFile(
+        file,
+        JSON.stringify({
+          fingerprint: 'seeded',
+          writtenAt: Date.now(),
+          repos: []
+        }),
+        'utf8'
+      );
+    }
+
+    it('honours a stale cache when the cache is left on', async () => {
+      const local = await makeRepo('foo', 'cached-off', {
+        isRepo: true,
+        origin: 'git@github.com:foo/cached-off.git',
+        ageDays: 400
+      });
+      await seedCacheWithout();
+      await runRaw(['--yes']);
+      // The cache says there is nothing to clean, so the repo survives.
+      expect(existsSync(local)).toBe(true);
+    });
+
+    it('rescans past a stale cache when --no-cache is passed', async () => {
+      const local = await makeRepo('foo', 'cached-on', {
+        isRepo: true,
+        origin: 'git@github.com:foo/cached-on.git',
+        ageDays: 400
+      });
+      await seedCacheWithout();
+      await runRaw(['--no-cache', '--yes']);
+      expect(existsSync(local)).toBe(false);
     });
   });
 

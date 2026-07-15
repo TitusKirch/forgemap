@@ -24,6 +24,7 @@
     "preset": "cli"
   },
   "work": {
+    "branch": "branch:dev",
     "verify": "pnpm check && pnpm typecheck && pnpm test && pnpm build",
     "labels": {
       "ready": "ai: ready",

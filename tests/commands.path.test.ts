@@ -1,9 +1,9 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runCommand } from 'citty';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { pathCommand } from '../src/commands/path.ts';
+import { runCli } from './helpers/citty.ts';
 
 const FIXTURE_CONFIG = `export default {
   root: '.',
@@ -31,21 +31,6 @@ async function setup(): Promise<string> {
   return dir;
 }
 
-function captureStdout(): { read: () => string; restore: () => void } {
-  const writes: string[] = [];
-  const original = process.stdout.write.bind(process.stdout);
-  process.stdout.write = ((chunk: string | Uint8Array): boolean => {
-    writes.push(typeof chunk === 'string' ? chunk : chunk.toString());
-    return true;
-  }) as typeof process.stdout.write;
-  return {
-    read: () => writes.join('').trimEnd(),
-    restore: () => {
-      process.stdout.write = original;
-    }
-  };
-}
-
 /**
  * Drive the command through citty's real argument parsing (node:util
  * parseArgs under the hood) rather than hand-injecting an args object —
@@ -56,16 +41,12 @@ async function runPath(
   dir: string,
   ...argv: string[]
 ): Promise<{ out: string; exit: number | undefined }> {
-  const stdout = captureStdout();
-  process.exitCode = undefined;
-  try {
-    await runCommand(pathCommand, {
-      rawArgs: [...argv, '--config', join(dir, 'forgemap.config.ts')]
-    });
-  } finally {
-    stdout.restore();
-  }
-  return { out: stdout.read(), exit: process.exitCode };
+  const { out, exit } = await runCli(pathCommand, [
+    ...argv,
+    '--config',
+    join(dir, 'forgemap.config.ts')
+  ]);
+  return { out: out.trimEnd(), exit };
 }
 
 describe('pathCommand', () => {

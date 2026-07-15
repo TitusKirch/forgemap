@@ -1,8 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runCommand } from 'citty';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { runCli } from './helpers/citty.ts';
 
 const { spawnMock } = vi.hoisted(() => ({ spawnMock: vi.fn() }));
 
@@ -37,9 +37,11 @@ function fakeChild() {
 
 /** Driven through citty's real argument parsing, not an injected args object. */
 async function runOpen(dir: string, slug: string): Promise<void> {
-  await runCommand(openCommand, {
-    rawArgs: [slug, '--config', join(dir, 'forgemap.config.ts')]
-  });
+  await runCli(openCommand, [
+    slug,
+    '--config',
+    join(dir, 'forgemap.config.ts')
+  ]);
 }
 
 describe('openCommand', () => {

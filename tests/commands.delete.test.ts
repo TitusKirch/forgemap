@@ -2,9 +2,9 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { runCommand } from 'citty';
 import consola from 'consola';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { runCli } from './helpers/citty.ts';
 
 const { hasCommandMock, execCaptureMock } = vi.hoisted(() => ({
   hasCommandMock: vi.fn(),
@@ -54,21 +54,11 @@ async function runDelete(
   dir: string,
   rawArgs: string[]
 ): Promise<{ out: string; exit: number | undefined }> {
-  const writes: string[] = [];
-  const original = process.stdout.write.bind(process.stdout);
-  process.stdout.write = ((chunk: string | Uint8Array): boolean => {
-    writes.push(typeof chunk === 'string' ? chunk : chunk.toString());
-    return true;
-  }) as typeof process.stdout.write;
-  process.exitCode = undefined;
-  try {
-    await runCommand(deleteCommand, {
-      rawArgs: [...rawArgs, '--config', join(dir, 'forgemap.config.ts')]
-    });
-  } finally {
-    process.stdout.write = original;
-  }
-  return { out: writes.join(''), exit: process.exitCode };
+  return runCli(deleteCommand, [
+    ...rawArgs,
+    '--config',
+    join(dir, 'forgemap.config.ts')
+  ]);
 }
 
 const CONFIG = `export default {

@@ -1,8 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { runCommand } from 'citty';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { runCli } from './helpers/citty.ts';
 
 const { getRepoStatusMock } = vi.hoisted(() => ({
   getRepoStatusMock: vi.fn()
@@ -16,6 +16,7 @@ vi.mock('../src/repos/git.ts', () => ({
 }));
 
 import { statusCommand } from '../src/commands/status.ts';
+import { __test } from '../src/repos/cache.ts';
 
 const FIXTURE_CONFIG = `export default {
   root: '.',
@@ -50,7 +51,7 @@ async function runStatus(
     await statusCommand.run!({
       args: {
         config: join(dir, 'forgemap.config.ts'),
-        'no-cache': true,
+        cache: false,
         format: 'pretty',
         ...extra,
         _: []
@@ -67,36 +68,31 @@ async function runStatus(
 
 /**
  * Drives the command through citty's real argv parsing, unlike `runStatus`
- * which injects `args` directly. Repeated flags only behave correctly on this
- * path, so the `--filter` repetition tests have to go through it.
+ * which injects `args` directly. Repeated and negated flags only behave
+ * correctly on this path, so those tests have to go through it.
  */
 async function runStatusArgv(dir: string, extra: string[]): Promise<string> {
-  const writes: string[] = [];
-  const original = process.stdout.write.bind(process.stdout);
-  process.stdout.write = ((chunk: string | Uint8Array): boolean => {
-    writes.push(typeof chunk === 'string' ? chunk : chunk.toString());
-    return true;
-  }) as typeof process.stdout.write;
-  try {
-    await runCommand(statusCommand, {
-      rawArgs: [
-        '--config',
-        join(dir, 'forgemap.config.ts'),
-        '--no-cache',
-        ...extra
-      ]
-    });
-  } finally {
-    process.stdout.write = original;
-  }
-  return writes.join('');
+  const { out } = await runCli(statusCommand, [
+    '--config',
+    join(dir, 'forgemap.config.ts'),
+    '--no-cache',
+    ...extra
+  ]);
+  return out;
 }
 
 describe('statusCommand', () => {
   let dir: string;
+  let cacheDir: string;
+  let originalCacheHome: string | undefined;
 
   beforeEach(async () => {
     dir = await setup();
+    // Keep the scan cache inside the fixture — the real ~/.cache/forgemap is
+    // the user's, and `--no-cache` runs below would otherwise write into it.
+    cacheDir = await mkdtemp(join(tmpdir(), 'forgemap-status-cache-'));
+    originalCacheHome = process.env.XDG_CACHE_HOME;
+    process.env.XDG_CACHE_HOME = cacheDir;
     getRepoStatusMock.mockReset();
     getRepoStatusMock.mockResolvedValue({
       branch: 'main',
@@ -111,6 +107,9 @@ describe('statusCommand', () => {
 
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
+    await rm(cacheDir, { recursive: true, force: true });
+    if (originalCacheHome === undefined) delete process.env.XDG_CACHE_HOME;
+    else process.env.XDG_CACHE_HOME = originalCacheHome;
     process.exitCode = undefined;
   });
 
@@ -252,5 +251,64 @@ describe('statusCommand', () => {
   it('exits 1 for invalid --format', async () => {
     const { exit } = await runStatus(dir, { format: 'csv' });
     expect(exit).toBe(1);
+  });
+
+  // Issue #59: `--no-cache` was declared as an option literally named
+  // `no-cache`, but citty strips the `--no-` prefix and negates a `cache`
+  // flag instead — so `args['no-cache']` never became true and the flag was
+  // dead. Seeding a repo that exists only in the cache is the way to tell the
+  // two paths apart: with the cache honoured it shows up, with `--no-cache`
+  // the scan of the real fixture replaces it.
+  describe('--no-cache through real argv parsing', () => {
+    /** A repo present only in the cache file, never on disk. */
+    async function seedCache(): Promise<void> {
+      const file = __test.cachePath(dir);
+      await mkdir(dirname(file), { recursive: true });
+      await writeFile(
+        file,
+        JSON.stringify({
+          fingerprint: 'seeded',
+          writtenAt: Date.now(),
+          repos: [
+            {
+              forgeName: 'github',
+              forge: { type: 'github', host: 'github.com', dir: 'comGithub' },
+              owner: 'ghost',
+              repo: 'cached-only',
+              localPath: join(dir, 'comGithub', 'ghost', 'cached-only'),
+              slug: 'ghost/cached-only'
+            }
+          ]
+        }),
+        'utf8'
+      );
+    }
+
+    it('serves the cached repos when the cache is left on', async () => {
+      await seedCache();
+      const { out } = await runCli(statusCommand, [
+        '--config',
+        join(dir, 'forgemap.config.ts'),
+        '--format',
+        'json'
+      ]);
+      expect(JSON.parse(out).map((r: { owner: string }) => r.owner)).toEqual([
+        'ghost'
+      ]);
+    });
+
+    it('rescans and ignores the cache when --no-cache is passed', async () => {
+      await seedCache();
+      const { out } = await runCli(statusCommand, [
+        '--config',
+        join(dir, 'forgemap.config.ts'),
+        '--format',
+        'json',
+        '--no-cache'
+      ]);
+      const owners = JSON.parse(out).map((r: { owner: string }) => r.owner);
+      expect(owners).not.toContain('ghost');
+      expect(owners.sort()).toEqual(['foo', 'team']);
+    });
   });
 });
