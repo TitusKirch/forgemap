@@ -7,6 +7,7 @@ import {
   fetchRepo,
   getLastCommitUnix,
   getRepoStatus,
+  getUnpushedBranches,
   hasStashes,
   hasUnpushedCommits,
   isClean,
@@ -173,5 +174,36 @@ describe('repos/git', () => {
     } finally {
       await rm(remoteDir, { recursive: true, force: true });
     }
+  });
+
+  it('getUnpushedBranches names only the branches with local-only commits', async () => {
+    const remoteDir = await mkdtemp(join(tmpdir(), 'forgemap-git-remote-'));
+    try {
+      await git(remoteDir, ['init', '--bare', '--quiet', '-b', 'main']);
+      await git(dir, ['remote', 'add', 'origin', remoteDir]);
+      await git(dir, ['push', '--quiet', '-u', 'origin', 'main']);
+      // Fully pushed → nothing at risk.
+      expect(await getUnpushedBranches(dir)).toEqual([]);
+
+      // A branch whose commit exists only locally.
+      await git(dir, ['checkout', '--quiet', '-b', 'feature-x']);
+      await writeFile(join(dir, 'feature.md'), 'wip\n');
+      await git(dir, ['add', '.']);
+      await git(dir, ['commit', '--quiet', '-m', 'wip']);
+
+      const unpushed = await getUnpushedBranches(dir);
+      expect(unpushed).toEqual(['feature-x']);
+      // main is pushed, so it must not be reported as at-risk.
+      expect(unpushed).not.toContain('main');
+    } finally {
+      await rm(remoteDir, { recursive: true, force: true });
+    }
+  });
+
+  it('getUnpushedBranches reports every branch when there is no remote', async () => {
+    // Conservative, matching hasUnpushedCommits: no remote → nothing is safe.
+    await git(dir, ['branch', 'side']);
+    const unpushed = await getUnpushedBranches(dir);
+    expect(unpushed.sort()).toEqual(['main', 'side']);
   });
 });
