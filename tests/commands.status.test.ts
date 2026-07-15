@@ -76,6 +76,7 @@ describe('statusCommand', () => {
       dirty: false,
       ahead: 0,
       behind: 0,
+      stashes: 0,
       lastCommit: { sha: 'abc1234', relativeDate: '2 days ago' }
     });
   });
@@ -103,12 +104,46 @@ describe('statusCommand', () => {
       dirty: true,
       ahead: 3,
       behind: 1,
+      stashes: 0,
       lastCommit: { sha: 'def5678', relativeDate: '5 min ago' }
     });
     const { out } = await runStatus(dir);
     expect(out).toContain('↑3');
     expect(out).toContain('↓1');
     expect(out).toContain('feature');
+  });
+
+  // Issue #52: stashed work is invisible to every other marker, so `status`
+  // has to say so — before `cleanup` gets a chance to delete it.
+  it('surfaces the stash count, and omits the marker without stashes', async () => {
+    const clean = await runStatus(dir);
+    expect(clean.out).not.toContain('⚑');
+
+    getRepoStatusMock.mockResolvedValue({
+      branch: 'main',
+      detached: false,
+      dirty: false,
+      ahead: 0,
+      behind: 0,
+      stashes: 2,
+      lastCommit: { sha: 'abc1234', relativeDate: '2 days ago' }
+    });
+    const { out } = await runStatus(dir);
+    expect(out).toContain('⚑2');
+  });
+
+  it('--format json includes the stash count', async () => {
+    getRepoStatusMock.mockResolvedValue({
+      branch: 'main',
+      detached: false,
+      dirty: false,
+      ahead: 0,
+      behind: 0,
+      stashes: 4,
+      lastCommit: { sha: 'abc1234', relativeDate: '2 days ago' }
+    });
+    const { out } = await runStatus(dir, { format: 'json' });
+    expect(JSON.parse(out)[0].status.stashes).toBe(4);
   });
 
   it('--format json emits a structured payload', async () => {

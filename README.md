@@ -123,10 +123,10 @@ For each repo `import` compares the folder's `<owner>/<repo>` against the git `o
 forgemap cleanup                     # list deletable clones, then type "yes" to confirm
 forgemap cleanup --dry-run           # show candidates + why every other idle repo is kept
 forgemap cleanup --days 540          # idle threshold in days (default 365)
-forgemap cleanup --include-dirty --include-unpushed   # also delete repos with local-only work (lost!)
+forgemap cleanup --include-dirty --include-unpushed --include-stashed   # also delete repos with local-only work (lost!)
 ```
 
-A repo is only deleted when it is idle for `--days`+ days (by last **local** commit), has a clean working tree, has nothing unpushed, **and** its remote still exists — so everything removed is provably backed up. Repos without a remote (or with a gone/unreachable one) are never touched; empty owner directories left behind are pruned automatically. Deletion needs an explicit typed `yes` (or `--yes`).
+A repo is only deleted when it is idle for `--days`+ days (by last **local** commit), has a clean working tree, has nothing unpushed, has no stashed work, **and** its remote still exists — so everything removed is provably backed up. Repos without a remote (or with a gone/unreachable one) are never touched; empty owner directories left behind are pruned automatically. Deletion needs an explicit typed `yes` (or `--yes`).
 
 ### Preflight your config
 

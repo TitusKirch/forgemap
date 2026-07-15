@@ -16,6 +16,7 @@ vi.mock('../src/utils/exec.ts', () => ({
   execInherit: vi.fn()
 }));
 
+import { runCommand } from 'citty';
 import { cleanupCommand } from '../src/commands/cleanup.ts';
 
 const DAY = 86_400;
@@ -25,6 +26,7 @@ interface RepoState {
   origin?: string;
   dirty?: boolean;
   unpushed?: boolean;
+  stashes?: number; // entries on refs/stash
   ageDays?: number; // last commit this many days ago
   lsRemote?: 'ok' | 'gone'; // git-forge ls-remote outcome
 }
@@ -106,6 +108,13 @@ describe('cleanupCommand', () => {
           }
           if (args[0] === 'branch') return ok('main');
           if (args[0] === 'status') return ok(s?.dirty ? 'M file' : '');
+          if (args[0] === 'stash') {
+            // countStashes: one `stash@{n}` line per entry.
+            const n = s?.stashes ?? 0;
+            return ok(
+              Array.from({ length: n }, (_, i) => `stash@{${i}}`).join('\n')
+            );
+          }
           if (args[0] === 'rev-list') return ok('0\t0');
           if (args[0] === 'log' && args.includes('--not')) {
             // hasUnpushedCommits
@@ -265,6 +274,73 @@ describe('cleanupCommand', () => {
     expect(existsSync(local)).toBe(false);
   });
 
+  // Issue #52: the repo is clean and fully pushed — its ONLY local work is the
+  // stash. Before the stash gate existed, cleanup deleted it without a word.
+  it('keeps a repo whose only local work is stashed', async () => {
+    const local = await makeRepo('foo', 'stashonly', {
+      isRepo: true,
+      origin: 'git@github.com:foo/stashonly.git',
+      ageDays: 400,
+      stashes: 1
+    });
+    const { out } = await runCleanup(dir, { yes: true });
+    expect(existsSync(local)).toBe(true);
+    expect(out).toContain('stashed work');
+    expect(out).toContain('1 stash');
+  });
+
+  it('pluralises the stashed-work kept reason', async () => {
+    await makeRepo('foo', 'manystash', {
+      isRepo: true,
+      origin: 'git@github.com:foo/manystash.git',
+      ageDays: 400,
+      stashes: 3
+    });
+    const { out } = await runCleanup(dir, { yes: true });
+    expect(out).toContain('3 stashes');
+  });
+
+  it('--include-stashed deletes a stashed (but clean, pushed) repo', async () => {
+    const local = await makeRepo('foo', 'stashold', {
+      isRepo: true,
+      origin: 'git@github.com:foo/stashold.git',
+      ageDays: 400,
+      stashes: 2
+    });
+    await runCleanup(dir, { yes: true, 'include-stashed': true });
+    expect(existsSync(local)).toBe(false);
+  });
+
+  it('--include-stashed still keeps a repo that also has unpushed commits', async () => {
+    const local = await makeRepo('foo', 'stashunpushed', {
+      isRepo: true,
+      origin: 'git@github.com:foo/stashunpushed.git',
+      ageDays: 400,
+      stashes: 1,
+      unpushed: true
+    });
+    const { out } = await runCleanup(dir, {
+      yes: true,
+      'include-stashed': true
+    });
+    expect(existsSync(local)).toBe(true);
+    expect(out).toContain('unpushed commits');
+  });
+
+  it('flags stashed work in the eligible list under --include-stashed', async () => {
+    await makeRepo('foo', 'stashflag', {
+      isRepo: true,
+      origin: 'git@github.com:foo/stashflag.git',
+      ageDays: 400,
+      stashes: 2
+    });
+    const { out } = await runCleanup(dir, {
+      'dry-run': true,
+      'include-stashed': true
+    });
+    expect(out).toContain('stashed:2');
+  });
+
   it('never deletes a gone remote even with both --include flags', async () => {
     const local = await makeRepo('foo', 'goneflags', {
       isRepo: true,
@@ -279,6 +355,39 @@ describe('cleanupCommand', () => {
       'include-unpushed': true
     });
     expect(existsSync(local)).toBe(true);
+  });
+
+  // runCleanup injects `args` directly, which bypasses citty's real parsing
+  // (node:util parseArgs) — a misnamed or unparsable flag would still "work"
+  // there. These two drive the actual parser instead.
+  describe('citty argument parsing', () => {
+    async function runRaw(rawArgs: string[]) {
+      await runCommand(cleanupCommand, {
+        rawArgs: ['--config', join(dir, 'forgemap.config.ts'), ...rawArgs]
+      });
+    }
+
+    it('--include-stashed reaches the run through citty', async () => {
+      const local = await makeRepo('foo', 'cittyon', {
+        isRepo: true,
+        origin: 'git@github.com:foo/cittyon.git',
+        ageDays: 400,
+        stashes: 1
+      });
+      await runRaw(['--no-cache', '--yes', '--include-stashed']);
+      expect(existsSync(local)).toBe(false);
+    });
+
+    it('omitting --include-stashed keeps stashed work through citty', async () => {
+      const local = await makeRepo('foo', 'cittyoff', {
+        isRepo: true,
+        origin: 'git@github.com:foo/cittyoff.git',
+        ageDays: 400,
+        stashes: 1
+      });
+      await runRaw(['--no-cache', '--yes']);
+      expect(existsSync(local)).toBe(true);
+    });
   });
 
   it('removes a pre-existing empty owner directory', async () => {

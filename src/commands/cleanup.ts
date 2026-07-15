@@ -25,9 +25,9 @@ const LOCAL_CONCURRENCY = 16;
 const REMOTE_CONCURRENCY = 10;
 
 /**
- * A stale repo that has an origin. `dirty` / `unpushed` record its local
- * state; the run logic decides whether those block deletion (overridable via
- * flags) while a missing remote is always a hard stop. Carries the origin
+ * A stale repo that has an origin. `dirty` / `unpushed` / `stashed` record its
+ * local state; the run logic decides whether those block deletion (overridable
+ * via flags) while a missing remote is always a hard stop. Carries the origin
  * identity used for the remote-existence check.
  */
 interface Candidate {
@@ -39,6 +39,8 @@ interface Candidate {
   lastCommitUnix: number;
   dirty: boolean;
   unpushed: boolean;
+  /** Entries on the stash; deleting the repo destroys them. */
+  stashes: number;
 }
 
 /**
@@ -60,6 +62,7 @@ async function evaluate(
 
   const status = await getRepoStatus(repo.localPath);
   const dirty = status.dirty;
+  const stashes = status.stashes;
   const unpushed = await hasUnpushedCommits(repo.localPath);
 
   let owner = repo.owner;
@@ -72,7 +75,16 @@ async function evaluate(
     // Unparseable origin — fall back to the folder identity.
   }
 
-  return { repo, origin, owner, name, lastCommitUnix, dirty, unpushed };
+  return {
+    repo,
+    origin,
+    owner,
+    name,
+    lastCommitUnix,
+    dirty,
+    unpushed,
+    stashes
+  };
 }
 
 /** Check each candidate's remote, grouped by forge so GitHub can batch. */
@@ -186,6 +198,11 @@ export const cleanupCommand = defineCommand({
         'Also delete repos with unpushed commits (those commits are lost)',
       default: false
     },
+    'include-stashed': {
+      type: 'boolean',
+      description: 'Also delete repos with stashed work (that stash is lost)',
+      default: false
+    },
     'no-cache': {
       type: 'boolean',
       description: 'Skip the scanned-repos cache',
@@ -227,12 +244,15 @@ export const cleanupCommand = defineCommand({
 
     const includeDirty = Boolean(args['include-dirty']);
     const includeUnpushed = Boolean(args['include-unpushed']);
+    const includeStashed = Boolean(args['include-stashed']);
 
-    // Dirty / unpushed only block when the matching --include flag is off.
-    // A missing remote is ALWAYS a hard stop (never overridable). So only the
-    // locally-eligible repos need a remote check.
+    // Dirty / unpushed / stashed only block when the matching --include flag
+    // is off. A missing remote is ALWAYS a hard stop (never overridable). So
+    // only the locally-eligible repos need a remote check.
     const localOk = (c: Candidate) =>
-      (!c.dirty || includeDirty) && (!c.unpushed || includeUnpushed);
+      (!c.dirty || includeDirty) &&
+      (!c.unpushed || includeUnpushed) &&
+      (c.stashes === 0 || includeStashed);
     const remoteStates = await classifyRemotes(stale.filter(localOk));
 
     const candidates: Candidate[] = [];
@@ -242,6 +262,11 @@ export const cleanupCommand = defineCommand({
         kept.push({ repo: c, reason: 'uncommitted changes' });
       } else if (c.unpushed && !includeUnpushed) {
         kept.push({ repo: c, reason: 'unpushed commits' });
+      } else if (c.stashes > 0 && !includeStashed) {
+        kept.push({
+          repo: c,
+          reason: `stashed work (${c.stashes} stash${c.stashes === 1 ? '' : 'es'})`
+        });
       } else {
         const state = remoteStates.get(c.repo.localPath)?.state;
         if (state === 'exists' || state === 'moved') candidates.push(c);
@@ -266,7 +291,8 @@ export const cleanupCommand = defineCommand({
       for (const c of candidates) {
         const flags = [
           c.dirty ? colors.red('dirty') : '',
-          c.unpushed ? colors.red('unpushed') : ''
+          c.unpushed ? colors.red('unpushed') : '',
+          c.stashes > 0 ? colors.red(`stashed:${c.stashes}`) : ''
         ]
           .filter(Boolean)
           .join(' ');
@@ -315,10 +341,12 @@ export const cleanupCommand = defineCommand({
 
     if (candidates.length > 0) {
       // Loud warning when --include flags put real work on the chopping block.
-      const losing = candidates.filter((c) => c.dirty || c.unpushed).length;
+      const losing = candidates.filter(
+        (c) => c.dirty || c.unpushed || c.stashes > 0
+      ).length;
       if (losing > 0) {
         consola.warn(
-          `${losing} of these have uncommitted/unpushed work that will be permanently lost.`
+          `${losing} of these have uncommitted/unpushed/stashed work that will be permanently lost.`
         );
       }
 
