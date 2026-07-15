@@ -4,6 +4,7 @@ import { cleanupCommand } from './commands/cleanup.ts';
 import { cloneCommand } from './commands/clone.ts';
 import { completionCommand } from './commands/completion.ts';
 import { configCommand } from './commands/config/index.ts';
+import { deleteCommand } from './commands/delete.ts';
 import { importCommand } from './commands/import.ts';
 import { openCommand } from './commands/open.ts';
 import { pathCommand } from './commands/path.ts';
@@ -24,6 +25,7 @@ export const rootCommand = defineCommand({
     clone: cloneCommand,
     import: importCommand,
     cleanup: cleanupCommand,
+    delete: deleteCommand,
     cd: cdCommand,
     path: pathCommand,
     open: openCommand,

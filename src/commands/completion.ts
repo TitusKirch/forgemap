@@ -11,6 +11,7 @@ const SUBCOMMANDS = [
   'clone',
   'import',
   'cleanup',
+  'delete',
   'cd',
   'path',
   'open',
@@ -24,7 +25,15 @@ const SUBCOMMANDS = [
   'config'
 ];
 
-const SLUG_COMMANDS = ['clone', 'cd', 'path', 'open', 'search', 'pick'];
+const SLUG_COMMANDS = [
+  'clone',
+  'cd',
+  'path',
+  'open',
+  'search',
+  'pick',
+  'delete'
+];
 
 function renderBash(): string {
   return `# forgemap bash completion — drop into your ~/.bashrc:
