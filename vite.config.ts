@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import { resolve } from 'node:path';
 // From vitest/config, not vite: vitest 4 no longer augments vite's UserConfig
@@ -11,7 +12,17 @@ const nodeBuiltins = new Set([
 
 const runtimeDeps = ['citty', 'c12', 'defu', 'pathe', 'consola', 'fuse.js'];
 
+// Read the version straight from package.json at build time and inline it via
+// `define` below. release-please owns package.json's `version`, so the CLI's
+// `--version` output and help header never drift from the published release.
+const pkg = JSON.parse(
+  readFileSync(resolve(__dirname, 'package.json'), 'utf8')
+) as { version: string };
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version)
+  },
   build: {
     target: 'node24',
     outDir: 'dist',
