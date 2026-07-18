@@ -6,6 +6,7 @@ import { completionCommand } from './commands/completion.ts';
 import { configCommand } from './commands/config/index.ts';
 import { deleteCommand } from './commands/delete.ts';
 import { importCommand } from './commands/import.ts';
+import { infoCommand } from './commands/info.ts';
 import { openCommand } from './commands/open.ts';
 import { pathCommand } from './commands/path.ts';
 import { pickCommand } from './commands/pick.ts';
@@ -41,6 +42,7 @@ export const rootCommand = defineCommand({
     status: statusCommand,
     sync: syncCommand,
     validate: validateCommand,
+    info: infoCommand,
     completion: completionCommand,
     'shell-init': shellInitCommand,
     config: configCommand

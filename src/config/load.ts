@@ -39,10 +39,19 @@ function findGlobalConfig(): string | undefined {
   return undefined;
 }
 
+/**
+ * Which of the four discovery steps produced the resolved config file:
+ * `--config` flag → `FORGEMAP_CONFIG` env → walk-up from cwd → global fallback.
+ * `default` means none matched and the built-in defaults are in effect.
+ */
+export type ConfigSource = 'flag' | 'env' | 'walk-up' | 'global' | 'default';
+
 export interface LoadedConfig {
   config: ForgeMapConfig;
   configFile: string | undefined;
   cwd: string;
+  /** The discovery step that found `configFile`, or `default` when none did. */
+  source: ConfigSource;
 }
 
 const DEFAULT_CONFIG: ForgeMapConfig = {
@@ -68,11 +77,31 @@ export async function loadForgeMapConfig(
   const envConfig = process.env.FORGEMAP_CONFIG;
   const startDir = options.cwd ?? process.cwd();
   // Resolution order: explicit flag → env → walk up from cwd → global fallback.
-  const explicit =
-    options.configFile ??
-    envConfig ??
-    findConfigUp(startDir) ??
-    findGlobalConfig();
+  // Track which step matched so callers (e.g. `info`) can report the origin.
+  let explicit: string | undefined;
+  let source: ConfigSource;
+  if (options.configFile) {
+    explicit = options.configFile;
+    source = 'flag';
+  } else if (envConfig) {
+    explicit = envConfig;
+    source = 'env';
+  } else {
+    const walkedUp = findConfigUp(startDir);
+    if (walkedUp) {
+      explicit = walkedUp;
+      source = 'walk-up';
+    } else {
+      const global = findGlobalConfig();
+      if (global) {
+        explicit = global;
+        source = 'global';
+      } else {
+        explicit = undefined;
+        source = 'default';
+      }
+    }
+  }
   const cwd = explicit ? dirname(explicit) : startDir;
 
   // No `defaults:` here — c12 would deep-merge them into the user
@@ -101,9 +130,16 @@ export async function loadForgeMapConfig(
         : DEFAULT_CONFIG.forges
   };
 
+  // When nothing was discovered, c12 still echoes back the fallback base name
+  // ("forgemap.config") as `configFile` — a path that does not exist. Treat that
+  // as "no file" so callers report the built-in defaults honestly.
+  const resolvedFile =
+    source === 'default' ? undefined : configFile || undefined;
+
   return {
     config: merged,
-    configFile: configFile || undefined,
-    cwd
+    configFile: resolvedFile,
+    cwd,
+    source: resolvedFile ? source : 'default'
   };
 }
