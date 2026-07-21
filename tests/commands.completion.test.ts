@@ -44,7 +44,7 @@ describe('completionCommand', () => {
     const out = await runCompletion({ shell: 'bash' });
     expect(out).toContain('_forgemap_completion');
     expect(out).toContain('complete -F');
-    expect(out).toContain('forgemap search');
+    expect(out).toContain('forgemap list');
   });
 
   it('emits a zsh compdef', async () => {
@@ -76,6 +76,70 @@ describe('completionCommand', () => {
     const out = await runCompletion({ shell: 'bash' });
     expect(out).toContain('import');
     expect(out).toContain('cleanup');
+  });
+
+  describe('flags and enum values', () => {
+    it('bash completes each subcommand with only its own flags', async () => {
+      const out = await runCompletion({ shell: 'bash' });
+      expect(out).toContain('clone) flags="--ssh --https --config"');
+      expect(out).toContain('list) flags="--format --filter --limit --config"');
+      expect(out).toContain('completion) flags="--install"');
+      // clone's flags do not leak the unrelated --format flag.
+      expect(out).not.toContain(
+        'clone) flags="--ssh --https --config --format'
+      );
+    });
+
+    it('bash offers the negated form of negatable booleans', async () => {
+      const out = await runCompletion({ shell: 'bash' });
+      expect(out).toContain('--cache --no-cache');
+    });
+
+    it('bash completes static enum values per flag', async () => {
+      const out = await runCompletion({ shell: 'bash' });
+      expect(out).toContain(
+        'list:--format) COMPREPLY=( $(compgen -W "auto pretty path slug"'
+      );
+      expect(out).toContain(
+        'status:--format) COMPREPLY=( $(compgen -W "pretty json"'
+      );
+      expect(out).toContain(
+        'import:--type) COMPREPLY=( $(compgen -W "forgemap"'
+      );
+    });
+
+    it('bash completes the shell positional for completion/shell-init', async () => {
+      const out = await runCompletion({ shell: 'bash' });
+      expect(out).toContain(
+        'completion) COMPREPLY=( $(compgen -W "zsh bash fish"'
+      );
+      expect(out).toContain(
+        'shell-init) COMPREPLY=( $(compgen -W "zsh bash fish"'
+      );
+    });
+
+    it('zsh completes per-subcommand flags and enum values', async () => {
+      const out = await runCompletion({ shell: 'zsh' });
+      expect(out).toContain('clone) compadd -- --ssh --https --config;');
+      expect(out).toContain('list:--format) compadd auto pretty path slug;');
+      expect(out).toContain('compadd zsh bash fish');
+      expect(out).toContain('--cache --no-cache');
+    });
+
+    it('fish scopes flags and enum values per subcommand', async () => {
+      const out = await runCompletion({ shell: 'fish' });
+      expect(out).toContain(
+        "complete -c forgemap -n '__fish_seen_subcommand_from clone' -l ssh"
+      );
+      expect(out).toContain(
+        "complete -c forgemap -n '__fish_seen_subcommand_from list' -l format -x -a 'auto pretty path slug'"
+      );
+      expect(out).toContain(
+        "complete -c forgemap -n '__fish_seen_subcommand_from status' -l no-cache"
+      );
+      expect(out).toContain('__forgemap_needs_shell');
+      expect(out).toContain("-n '__forgemap_needs_shell' -a 'zsh bash fish'");
+    });
   });
 
   describe('--install', () => {

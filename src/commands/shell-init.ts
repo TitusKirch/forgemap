@@ -54,7 +54,7 @@ ${name}() {
       target=$(command forgemap pick) || return $?
     else
       local matches
-      matches=$(command forgemap search "$1" --format path)
+      matches=$(command forgemap list "$1" --format path)
       local count
       count=$(printf '%s' "$matches" | grep -c '^/' || true)
       if [ "$count" = "1" ]; then
@@ -85,7 +85,7 @@ function ${name} --description "forgemap with cd interception"
     if test (count $argv) -eq 0
       set target (command forgemap pick); or return $status
     else
-      set matches (command forgemap search $argv[1] --format path)
+      set matches (command forgemap list $argv[1] --format path)
       set count (count $matches)
       if test $count -eq 1
         set target $matches[1]

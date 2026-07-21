@@ -36,17 +36,18 @@ function renderTree(repos: ScannedRepo[]): string {
   );
 }
 
-export const searchCommand = defineCommand({
+export const listCommand = defineCommand({
   meta: {
-    name: 'search',
+    name: 'list',
     description:
-      'Fuzzy-search cloned repos by owner/repo and print matching repos'
+      'List cloned repos; with a query, fuzzy-match by owner/repo and print matches'
   },
   args: {
     query: {
       type: 'positional',
-      description: 'Search term (matched fuzzily against <owner>/<repo>)',
-      required: true
+      description:
+        'Optional search term (matched fuzzily against <owner>/<repo>). Omit to list every repo.',
+      required: false
     },
     format: {
       type: 'string',
@@ -70,11 +71,13 @@ export const searchCommand = defineCommand({
       ? dirname(loaded.configFile)
       : loaded.cwd;
     const scanned = await scanRepos({ config: loaded.config, configDir });
-    // Narrow before searching, so --limit counts matches within the filtered set.
+    // Narrow before matching, so --limit counts matches within the filtered set.
     const repos = filterRepos(scanned, resolveFilters(rawArgs, args.filter));
 
     const limit = args.limit ? Number.parseInt(args.limit, 10) : undefined;
-    const items = matchRepos(repos, args.query, limit);
+    // No query lists everything: Fuse treats an empty query as "match all".
+    const query = args.query ?? '';
+    const items = matchRepos(repos, query, limit);
 
     const allowed: Format[] = ['auto', 'pretty', 'path', 'slug'];
     if (!allowed.includes(args.format as Format)) {
@@ -93,7 +96,9 @@ export const searchCommand = defineCommand({
         : requested;
 
     if (items.length === 0) {
-      if (format === 'pretty') consola.info(`No matches for "${args.query}".`);
+      if (format === 'pretty') {
+        consola.info(query ? `No matches for "${query}".` : 'No repos found.');
+      }
       return;
     }
 

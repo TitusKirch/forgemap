@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { searchCommand } from '../src/commands/search.ts';
+import { listCommand } from '../src/commands/list.ts';
 import { runCli } from './helpers/citty.ts';
 
 const FIXTURE_CONFIG = `export default {
@@ -15,7 +15,7 @@ const FIXTURE_CONFIG = `export default {
 `;
 
 async function setup(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'forgemap-search-'));
+  const dir = await mkdtemp(join(tmpdir(), 'forgemap-list-'));
   await writeFile(join(dir, 'forgemap.config.ts'), FIXTURE_CONFIG, 'utf8');
   await mkdir(join(dir, 'comGithub', 'TitusKirch', 'forgemap'), {
     recursive: true
@@ -29,9 +29,9 @@ async function setup(): Promise<string> {
   return dir;
 }
 
-async function runSearch(
+async function runList(
   dir: string,
-  query: string,
+  query?: string,
   extra: Record<string, unknown> = {}
 ): Promise<string[]> {
   const writes: string[] = [];
@@ -41,16 +41,16 @@ async function runSearch(
     return true;
   }) as typeof process.stdout.write;
   try {
-    await searchCommand.run!({
+    await listCommand.run!({
       args: {
         query,
         config: join(dir, 'forgemap.config.ts'),
         format: 'path',
         ...extra,
-        _: [query]
+        _: query === undefined ? [] : [query]
       },
-      rawArgs: [query],
-      cmd: searchCommand,
+      rawArgs: query === undefined ? [] : [query],
+      cmd: listCommand,
       data: undefined
     } as never);
   } finally {
@@ -59,7 +59,7 @@ async function runSearch(
   return writes.join('').split('\n').filter(Boolean);
 }
 
-describe('searchCommand', () => {
+describe('listCommand', () => {
   let dir: string;
 
   beforeEach(async () => {
@@ -70,8 +70,40 @@ describe('searchCommand', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  it('lists every cloned repo when no query is given', async () => {
+    const lines = await runList(dir);
+    expect(lines).toContain(join(dir, 'comGithub', 'TitusKirch', 'forgemap'));
+    expect(lines).toContain(join(dir, 'comGithub', 'kirchDev', 'forgemap-php'));
+    expect(lines).toContain(join(dir, 'comGithub', 'kirchDev', 'laravel-pbac'));
+  });
+
+  it('lists every repo as slugs when no query is given', async () => {
+    const lines = await runList(dir, undefined, { format: 'slug' });
+    expect(lines.sort()).toEqual([
+      'TitusKirch/forgemap',
+      'kirchDev/forgemap-php',
+      'kirchDev/laravel-pbac'
+    ]);
+  });
+
+  it('respects --limit with no query', async () => {
+    const lines = await runList(dir, undefined, { limit: '2' });
+    expect(lines).toHaveLength(2);
+  });
+
+  it('--filter narrows the full listing when no query is given', async () => {
+    const lines = await runList(dir, undefined, {
+      filter: 'kirchDev',
+      format: 'slug'
+    });
+    expect(lines.sort()).toEqual([
+      'kirchDev/forgemap-php',
+      'kirchDev/laravel-pbac'
+    ]);
+  });
+
   it('returns repos whose owner or repo matches fuzzily', async () => {
-    const lines = await runSearch(dir, 'forgemap');
+    const lines = await runList(dir, 'forgemap');
     expect(lines).toContain(join(dir, 'comGithub', 'TitusKirch', 'forgemap'));
     expect(lines).toContain(join(dir, 'comGithub', 'kirchDev', 'forgemap-php'));
     expect(lines).not.toContain(
@@ -80,20 +112,20 @@ describe('searchCommand', () => {
   });
 
   it('matches owner names', async () => {
-    const lines = await runSearch(dir, 'kirchDev');
+    const lines = await runList(dir, 'kirchDev');
     expect(lines).toContain(join(dir, 'comGithub', 'kirchDev', 'forgemap-php'));
     expect(lines).toContain(join(dir, 'comGithub', 'kirchDev', 'laravel-pbac'));
   });
 
   it('prints slug only with --format slug', async () => {
-    const lines = await runSearch(dir, 'forgemap', { format: 'slug' });
+    const lines = await runList(dir, 'forgemap', { format: 'slug' });
     expect(lines).toContain('TitusKirch/forgemap');
     expect(lines).toContain('kirchDev/forgemap-php');
     expect(lines.every((l) => !l.startsWith('/'))).toBe(true);
   });
 
   it('renders a colored table with --format pretty', async () => {
-    const lines = await runSearch(dir, 'forgemap', { format: 'pretty' });
+    const lines = await runList(dir, 'forgemap', { format: 'pretty' });
     expect(lines.length).toBeGreaterThan(0);
     // Grouped forge → owner → repo: owners and repos render on separate lines.
     expect(lines.some((l) => l.includes('TitusKirch'))).toBe(true);
@@ -102,12 +134,12 @@ describe('searchCommand', () => {
   });
 
   it('respects --limit', async () => {
-    const lines = await runSearch(dir, 'a', { limit: '1' });
+    const lines = await runList(dir, 'a', { limit: '1' });
     expect(lines).toHaveLength(1);
   });
 
   it('--filter narrows the searched set to a matching owner', async () => {
-    const lines = await runSearch(dir, 'forgemap', { filter: 'kirchDev' });
+    const lines = await runList(dir, 'forgemap', { filter: 'kirchDev' });
     expect(lines).toContain(join(dir, 'comGithub', 'kirchDev', 'forgemap-php'));
     expect(lines).not.toContain(
       join(dir, 'comGithub', 'TitusKirch', 'forgemap')
@@ -120,7 +152,7 @@ describe('searchCommand', () => {
   // driven programmatically; the argv-level counterpart lives in the 'citty
   // argument parsing' block below.
   it('--filter is OR-combined when repeated', async () => {
-    const lines = await runSearch(dir, 'forgemap', {
+    const lines = await runList(dir, 'forgemap', {
       filter: ['kirchDev', 'TitusKirch'],
       format: 'slug'
     });
@@ -129,7 +161,7 @@ describe('searchCommand', () => {
   });
 
   it('--filter applies before --limit', async () => {
-    const lines = await runSearch(dir, 'forgemap', {
+    const lines = await runList(dir, 'forgemap', {
       filter: 'kirchDev',
       format: 'slug',
       limit: '5'
@@ -138,7 +170,7 @@ describe('searchCommand', () => {
   });
 
   it('prints nothing on no matches (exit 0)', async () => {
-    const lines = await runSearch(dir, 'zzz-no-such-thing-zzz');
+    const lines = await runList(dir, 'zzz-no-such-thing-zzz');
     expect(lines).toEqual([]);
   });
 
@@ -147,7 +179,7 @@ describe('searchCommand', () => {
   // only meaningful when driven through real argv.
   describe('citty argument parsing', () => {
     async function runArgv(rawArgs: string[]): Promise<string[]> {
-      const { lines } = await runCli(searchCommand, [
+      const { lines } = await runCli(listCommand, [
         ...rawArgs,
         '--config',
         join(dir, 'forgemap.config.ts')

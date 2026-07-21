@@ -9,11 +9,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Commands are registered in `src/cli.ts` — treat that file as the list, not this one:
 
 - **Acquire** — `clone`, `import` (adopt existing checkouts), `cleanup`, `delete`.
-- **Locate** — `cd`, `path`, `open`, `search`, `pick` (fuzzy picker, `fuse.js`).
+- **Locate** — `cd`, `path`, `open`, `list`, `pick` (fuzzy picker, `fuse.js`).
 - **Inspect** — `status`, `sync`, `validate`.
 - **Plumbing** — `completion`, `shell-init`, `config` (`init` / `show`).
 
-There is no `list` command — `search` / `pick` / `status` cover it.
+`list` is the single command for both listing and searching — bare `list` prints every repo, `list <query>` fuzzy-matches. There is no separate `search` command (it was replaced by `list`).
 
 Forge support is per-`type`, dispatched by `src/forges/registry.ts`:
 

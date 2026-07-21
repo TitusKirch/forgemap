@@ -2,7 +2,7 @@ import Fuse, { type IFuseOptions } from 'fuse.js';
 import type { ScannedRepo } from './scan.ts';
 
 /**
- * The one Fuse configuration every fuzzy lookup shares — `search`, `pick`
+ * The one Fuse configuration every fuzzy lookup shares — `list`, `pick`
  * and the fuzzy slug fallback in `path`/`open`. Keeping it in one place is
  * what makes a query rank identically no matter which command runs it.
  */

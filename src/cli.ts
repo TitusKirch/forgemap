@@ -7,10 +7,10 @@ import { configCommand } from './commands/config/index.ts';
 import { deleteCommand } from './commands/delete.ts';
 import { importCommand } from './commands/import.ts';
 import { infoCommand } from './commands/info.ts';
+import { listCommand } from './commands/list.ts';
 import { openCommand } from './commands/open.ts';
 import { pathCommand } from './commands/path.ts';
 import { pickCommand } from './commands/pick.ts';
-import { searchCommand } from './commands/search.ts';
 import { shellInitCommand } from './commands/shell-init.ts';
 import { statusCommand } from './commands/status.ts';
 import { syncCommand } from './commands/sync.ts';
@@ -37,7 +37,7 @@ export const rootCommand = defineCommand({
     cd: cdCommand,
     path: pathCommand,
     open: openCommand,
-    search: searchCommand,
+    list: listCommand,
     pick: pickCommand,
     status: statusCommand,
     sync: syncCommand,
