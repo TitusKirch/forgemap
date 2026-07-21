@@ -15,7 +15,7 @@ const SUBCOMMANDS = [
   'cd',
   'path',
   'open',
-  'search',
+  'list',
   'pick',
   'status',
   'sync',
@@ -25,15 +25,7 @@ const SUBCOMMANDS = [
   'config'
 ];
 
-const SLUG_COMMANDS = [
-  'clone',
-  'cd',
-  'path',
-  'open',
-  'search',
-  'pick',
-  'delete'
-];
+const SLUG_COMMANDS = ['clone', 'cd', 'path', 'open', 'list', 'pick', 'delete'];
 
 function renderBash(): string {
   return `# forgemap bash completion — drop into your ~/.bashrc:
@@ -52,7 +44,7 @@ _forgemap_completion() {
   case "$cmd" in
     ${SLUG_COMMANDS.join('|')})
       local slugs
-      slugs=$(forgemap search '' --format slug 2>/dev/null)
+      slugs=$(forgemap list --format slug 2>/dev/null)
       COMPREPLY=( $(compgen -W "$slugs" -- "$cur") )
       ;;
   esac
@@ -79,7 +71,7 @@ _forgemap() {
     args)
       if (( $slug_cmds[(I)$words[1]] )); then
         local -a slugs
-        slugs=("\${(@f)$(forgemap search '' --format slug 2>/dev/null)}")
+        slugs=("\${(@f)$(forgemap list --format slug 2>/dev/null)}")
         _describe 'slug' slugs
       fi
       ;;
@@ -108,7 +100,7 @@ function __forgemap_needs_slug
 end
 
 complete -c forgemap -f -n '__forgemap_needs_slug' \\
-  -a '(forgemap search "" --format slug 2>/dev/null)'
+  -a '(forgemap list --format slug 2>/dev/null)'
 `;
 }
 

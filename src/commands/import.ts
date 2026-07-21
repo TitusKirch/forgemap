@@ -319,7 +319,7 @@ export const importCommand = defineCommand({
       if (written) consola.success(`Wrote ${written.path}`);
     }
 
-    // Warm the scan cache so the next status/search hits the hot path.
+    // Warm the scan cache so the next status/list hits the hot path.
     await scanReposCached({
       config: result.derived,
       configDir: path,

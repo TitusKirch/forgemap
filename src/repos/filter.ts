@@ -4,7 +4,7 @@ const FLAG = '--filter';
 
 /**
  * Shared `--filter` option for the commands that enumerate repos
- * (`status`, `sync`, `search`), so the flag reads identically everywhere.
+ * (`status`, `sync`, `list`), so the flag reads identically everywhere.
  */
 export const filterArg = {
   type: 'string',

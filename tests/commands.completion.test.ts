@@ -44,7 +44,7 @@ describe('completionCommand', () => {
     const out = await runCompletion({ shell: 'bash' });
     expect(out).toContain('_forgemap_completion');
     expect(out).toContain('complete -F');
-    expect(out).toContain('forgemap search');
+    expect(out).toContain('forgemap list');
   });
 
   it('emits a zsh compdef', async () => {

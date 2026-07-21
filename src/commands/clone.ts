@@ -80,7 +80,7 @@ export const cloneCommand = defineCommand({
       protocol
     });
 
-    // Keep the scan cache hot so the next `search`/`cd`/`status` doesn't
+    // Keep the scan cache hot so the next `list`/`cd`/`status` doesn't
     // pay for an invalidation walk just because we added one repo.
     await appendCachedRepo(
       { config: loaded.config, configDir },

@@ -27,7 +27,7 @@ That's it. Every repo lands at a predictable `<root>/<forge.dir>/<owner>/<repo>`
 
 - **🗂️ Predictable layout** — every clone goes to `<root>/<forge.dir>/<owner>/<repo>`, configured once.
 - **🚪 Flexible slug syntax** — `owner/repo`, `forge:owner/repo`, full HTTPS URLs, or SSH (`git@…:…`).
-- **🔍 Fuzzy search** — `forgemap search <term>` finds local repos by owner or repo name (powered by [Fuse.js](https://www.fusejs.io/)); `cd`, `path` and `open` take the same fuzzy terms.
+- **🔍 List & fuzzy search** — `forgemap list` shows every local repo, `forgemap list <term>` filters by owner or repo name (powered by [Fuse.js](https://www.fusejs.io/)); `cd`, `path` and `open` take the same fuzzy terms.
 - **🤖 Forge-aware** — `type: 'github'` shells out to `gh`; `type: 'git'` uses plain `git clone` with no extra dependencies.
 - **🔁 Mass sync + status** — `forgemap sync` fetches every clone in parallel, `forgemap status` shows branch / dirty / ahead / behind per repo — narrow either to given owners or forges with a repeatable `--filter`.
 - **📥 Import existing trees** — `forgemap import <path>` adopts a folder already laid out as `<server>/<owner>/<repo>`, reconciles each repo against its git remote (spotting moved or deleted remotes), and derives a config.
@@ -56,7 +56,7 @@ forgemap cd laravel                      # fuzzy match → jump in; bare `forgem
 `forgemap cd` resolves the slug, walks/picks across your cloned repos, and actually changes directory because the shell wrapper from `shell-init` intercepts it before the binary runs. Every other subcommand falls through to the real binary unchanged. Hacking on forgemap itself? See [CONTRIBUTING.md → Trying the CLI locally](CONTRIBUTING.md#trying-the-cli-locally) — covers `pnpm setup`, `pnpm link --global .` and the shell-wrapper source.
 
 <details>
-<summary><strong>All commands</strong> — clone, cd, path, search, pick, open, sync/status, import, cleanup, delete, validate, shell-init, config</summary>
+<summary><strong>All commands</strong> — clone, cd, path, list, pick, open, sync/status, import, cleanup, delete, validate, shell-init, config</summary>
 
 ### Clone & jump
 
@@ -82,11 +82,12 @@ code "$(forgemap path forgemap)"         # feed any tool that takes a directory
 
 Prints where a repo lives — or *would* live, if it isn't cloned yet, which makes it useful for scripting a clone target. An exact `owner/repo` never touches the disk, so a strict slug always wins over a fuzzy match; ambiguous fuzzy terms error with the candidate list rather than guessing.
 
-### Search and pick on demand
+### List, search and pick on demand
 
 ```bash
-forgemap search forgemap            # pretty tree (one line per match)
-forgemap search forgemap | fzf      # pipe-friendly path output
+forgemap list                       # every repo as a pretty tree
+forgemap list forgemap              # pretty tree (one line per match)
+forgemap list forgemap | fzf        # pipe-friendly path output
 forgemap pick                       # interactive picker (consola prompt)
 forgemap pick kirch                 # picker pre-filtered by fuzzy query
 ```
@@ -118,11 +119,11 @@ forgemap status --format json --filter kirchDev --filter TitusKirch
 forgemap status --no-cache           # rescan the disk instead of using the cached tree
 ```
 
-`--filter` works on `status`, `sync` and `search`. It matches an **owner** or a **forge name** exactly (case-insensitive) — unlike `--query`, which is fuzzy.
+`--filter` works on `status`, `sync` and `list`. It matches an **owner** or a **forge name** exactly (case-insensitive) — unlike `--query`, which is fuzzy.
 
 `status`, `sync` and `cleanup` read a cached repo tree so repeated runs stay fast. Pass `--no-cache` to skip it and walk the disk again — the cache refreshes on its own, so you only need this right after cloning or moving repos by hand.
 
-All tree output (`status`, `search`, `import`) groups as `forge → owner → repo`. Network operations (`sync`, `import`, `cleanup`) run with a hard timeout and non-interactive SSH, so an unreachable host can never wedge a run.
+All tree output (`status`, `list`, `import`) groups as `forge → owner → repo`. Network operations (`sync`, `import`, `cleanup`) run with a hard timeout and non-interactive SSH, so an unreachable host can never wedge a run.
 
 ### Adopt an existing layout — `import`
 

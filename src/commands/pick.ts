@@ -51,7 +51,7 @@ export const pickCommand = defineCommand({
 
     if (!canPrompt()) {
       consola.error(
-        'pick requires an interactive terminal. Use `forgemap search` for non-interactive output.'
+        'pick requires an interactive terminal. Use `forgemap list` for non-interactive output.'
       );
       process.exitCode = 1;
       return;
