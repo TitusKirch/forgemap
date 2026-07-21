@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.0](https://github.com/TitusKirch/forgemap/compare/v0.4.1...v0.5.0) (2026-07-18)
+
+
+### Features
+
+* add --filter to status, sync and search ([#55](https://github.com/TitusKirch/forgemap/issues/55)) ([291072b](https://github.com/TitusKirch/forgemap/commit/291072b04ae2573cc0e6314a1c408439055f12fa))
+* add delete command for safe single-repo removal ([#58](https://github.com/TitusKirch/forgemap/issues/58)) ([e2b787f](https://github.com/TitusKirch/forgemap/commit/e2b787ff127b3855b291d896eff7fa36b025371c))
+* add info command for version, install path and config ([662a8e8](https://github.com/TitusKirch/forgemap/commit/662a8e826806bdb9e4fe7a68f4ab989d5a6b66d0)), closes [#69](https://github.com/TitusKirch/forgemap/issues/69)
+* fall back to fuzzy matching in path and open ([#56](https://github.com/TitusKirch/forgemap/issues/56)) ([66824fb](https://github.com/TitusKirch/forgemap/commit/66824fb0cc545f85621bd889194528e7f95e94cb))
+
+
+### Bug Fixes
+
+* answer --version/-v from the injected package version ([8bfe0ac](https://github.com/TitusKirch/forgemap/commit/8bfe0ac9555be2d6a2a3cb382222556e33a7affa)), closes [#68](https://github.com/TitusKirch/forgemap/issues/68)
+* **dependabot:** match managed area:* label names ([4804d8e](https://github.com/TitusKirch/forgemap/commit/4804d8eaba0a5f6e6f8e321bd5f965d93384c6ec))
+* honour the no-cache flag on status, sync and cleanup ([ed74faa](https://github.com/TitusKirch/forgemap/commit/ed74faa64f67954779faf5177062d9a91a858555)), closes [#59](https://github.com/TitusKirch/forgemap/issues/59)
+* keep cleanup from deleting repos with stashed work ([#57](https://github.com/TitusKirch/forgemap/issues/57)) ([4a4bf9d](https://github.com/TitusKirch/forgemap/commit/4a4bf9d17fc5add2f88cda5170bbdcbdd64b4446))
+
 ## [0.4.1](https://github.com/TitusKirch/forgemap/compare/v0.4.0...v0.4.1) (2026-05-27)
 
 
