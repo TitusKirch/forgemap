@@ -29,6 +29,9 @@ importers:
       fuse.js:
         specifier: ^7.3.0
         version: 7.5.0
+      magicast:
+        specifier: ^0.5.3
+        version: 0.5.3
       pathe:
         specifier: ^2.0.0
         version: 2.0.3

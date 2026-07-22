@@ -39,6 +39,44 @@ function findGlobalConfig(): string | undefined {
   return undefined;
 }
 
+export interface ConfigFileCandidate {
+  path: string;
+  /** Which discovery step surfaced it. */
+  source: 'walk-up' | 'global';
+}
+
+/**
+ * Every `forgemap.config.*` a change could be written to, in resolution order:
+ * one per directory walking up from `start` (nearest first, mirroring the
+ * loader's first-basename-wins rule), then the global config. Used by the
+ * `forge` command to let the user pick a target when more than one exists.
+ */
+export function discoverConfigFiles(
+  start: string = process.cwd()
+): ConfigFileCandidate[] {
+  const found: ConfigFileCandidate[] = [];
+  const seen = new Set<string>();
+  let dir = resolve(start);
+  for (;;) {
+    for (const base of CONFIG_BASENAMES) {
+      const candidate = join(dir, base);
+      if (existsSync(candidate)) {
+        seen.add(candidate);
+        found.push({ path: candidate, source: 'walk-up' });
+        break;
+      }
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  const global = findGlobalConfig();
+  if (global && !seen.has(global)) {
+    found.push({ path: global, source: 'global' });
+  }
+  return found;
+}
+
 /**
  * Which of the four discovery steps produced the resolved config file:
  * `--config` flag → `FORGEMAP_CONFIG` env → walk-up from cwd → global fallback.

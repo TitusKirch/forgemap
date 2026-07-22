@@ -11,6 +11,7 @@ import { cleanupCommand } from './cleanup.ts';
 import { cloneCommand } from './clone.ts';
 import { configCommand } from './config/index.ts';
 import { deleteCommand } from './delete.ts';
+import { forgeCommand } from './forge/index.ts';
 import { importCommand } from './import.ts';
 import { infoCommand } from './info.ts';
 import { listCommand } from './list.ts';
@@ -101,7 +102,8 @@ function commandSpecs(): CommandSpec[] {
     ['info', infoCommand],
     ['completion', completionCommand],
     ['shell-init', shellInitCommand],
-    ['config', configCommand]
+    ['config', configCommand],
+    ['forge', forgeCommand]
   ];
   return registry.map(([name, cmd]) => ({
     name,

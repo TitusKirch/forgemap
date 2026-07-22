@@ -5,6 +5,7 @@ import { cloneCommand } from './commands/clone.ts';
 import { completionCommand } from './commands/completion.ts';
 import { configCommand } from './commands/config/index.ts';
 import { deleteCommand } from './commands/delete.ts';
+import { forgeCommand } from './commands/forge/index.ts';
 import { importCommand } from './commands/import.ts';
 import { infoCommand } from './commands/info.ts';
 import { listCommand } from './commands/list.ts';
@@ -45,6 +46,7 @@ export const rootCommand = defineCommand({
     info: infoCommand,
     completion: completionCommand,
     'shell-init': shellInitCommand,
-    config: configCommand
+    config: configCommand,
+    forge: forgeCommand
   }
 });

@@ -70,6 +70,7 @@
     "defu": "^6.1.4",
     "forgemap": "link:",
     "fuse.js": "^7.3.0",
+    "magicast": "^0.5.3",
     "pathe": "^2.0.0"
   },
   "devDependencies": {
