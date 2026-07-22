@@ -102,6 +102,9 @@ export async function loadForgeMapConfig(
       }
     }
   }
+  // Resolve before handing it to c12 — `cwd` is derived from it, so a relative
+  // path would be resolved a second time against that cwd and end up nested.
+  if (explicit) explicit = resolve(startDir, explicit);
   const cwd = explicit ? dirname(explicit) : startDir;
 
   // No `defaults:` here — c12 would deep-merge them into the user
