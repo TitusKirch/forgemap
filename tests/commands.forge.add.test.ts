@@ -4,6 +4,7 @@ import consola from 'consola';
 import { join } from 'pathe';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { forgeAddCommand } from '../src/commands/forge/add.ts';
+import { discoverConfigFiles } from '../src/config/load.ts';
 import { runCli } from './helpers/citty.ts';
 
 const CONFIG = `export default {
@@ -38,6 +39,14 @@ describe('forge add', () => {
     // up as an extra target and turn single-candidate cases into a select.
     savedXdg = process.env.XDG_CONFIG_HOME;
     process.env.XDG_CONFIG_HOME = join(dir, 'xdg-empty');
+    // The target-file select only appears with more than one candidate, and
+    // discovery walks up to the filesystem root — a stray forgemap.config.*
+    // above the temp dir would add one and throw off the prompt counts below.
+    // Fail loudly here rather than as a mystery mismatch in a single test.
+    expect({ cwd: process.cwd(), found: discoverConfigFiles() }).toEqual({
+      cwd: dir,
+      found: []
+    });
     process.exitCode = undefined;
     setTTY(false);
   });

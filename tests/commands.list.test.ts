@@ -226,14 +226,18 @@ describe('listCommand', () => {
     });
   });
   describe('output format resolution', () => {
-    let savedTTY: boolean | undefined;
+    // Restore via the descriptor, not an assignment: outside a TTY the
+    // property is absent, and assigning `undefined` back would leave it
+    // defined-but-undefined instead of gone.
+    let ttyDesc: PropertyDescriptor | undefined;
 
     beforeEach(() => {
-      savedTTY = process.stdout.isTTY;
+      ttyDesc = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
     });
 
     afterEach(() => {
-      process.stdout.isTTY = savedTTY as boolean;
+      if (ttyDesc) Object.defineProperty(process.stdout, 'isTTY', ttyDesc);
+      else delete (process.stdout as unknown as Record<string, unknown>).isTTY;
     });
 
     it('groups several repos under one owner in the tree', async () => {
