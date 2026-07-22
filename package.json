@@ -1,7 +1,7 @@
 {
   "$schema": "https://www.schemastore.org/package.json",
   "name": "forgemap",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "CLI that manages a local repo layout grouped by git server, organization and repository name.",
   "keywords": [
     "cli",
