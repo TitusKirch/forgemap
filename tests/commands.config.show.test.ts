@@ -47,4 +47,34 @@ describe('configShowCommand', () => {
     expect(parsed.config.defaultForge).toBe('github');
     expect(parsed.config.forges.github.dir).toBe('gh');
   });
+  it('reports a null configFile when only the built-in defaults apply', async () => {
+    const bare = await mkdtemp(join(tmpdir(), 'forgemap-show-bare-'));
+    const saved = process.cwd();
+    const savedXdg = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = join(bare, 'xdg-empty');
+    process.chdir(bare);
+    const writes: string[] = [];
+    const original = process.stdout.write.bind(process.stdout);
+    process.stdout.write = ((chunk: string | Uint8Array): boolean => {
+      writes.push(typeof chunk === 'string' ? chunk : chunk.toString());
+      return true;
+    }) as typeof process.stdout.write;
+    try {
+      await configShowCommand.run!({
+        args: { _: [] },
+        rawArgs: [],
+        cmd: configShowCommand,
+        data: undefined
+      } as never);
+    } finally {
+      process.stdout.write = original;
+      process.chdir(saved);
+      if (savedXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = savedXdg;
+      await rm(bare, { recursive: true, force: true });
+    }
+    const parsed = JSON.parse(writes.join(''));
+    expect(parsed.configFile).toBeNull();
+    expect(parsed.config.defaultForge).toBe('github');
+  });
 });

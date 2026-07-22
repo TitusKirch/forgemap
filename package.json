@@ -70,6 +70,7 @@
     "defu": "^6.1.4",
     "forgemap": "link:",
     "fuse.js": "^7.3.0",
+    "magicast": "^0.5.3",
     "pathe": "^2.0.0"
   },
   "devDependencies": {
@@ -79,8 +80,8 @@
     "@vitest/coverage-v8": "^4.1.10",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.5",
-    "oxfmt": "0.58.0",
-    "oxlint": "1.73.0",
+    "oxfmt": "0.59.0",
+    "oxlint": "1.74.0",
     "taze": "^19.13.0",
     "typescript": "^7.0.2",
     "vite": "^8.1.4",

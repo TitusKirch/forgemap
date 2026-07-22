@@ -1,6 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import consola from 'consola';
+import { stripAnsi } from 'consola/utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runCli } from './helpers/citty.ts';
 
@@ -309,6 +311,89 @@ describe('statusCommand', () => {
       const owners = JSON.parse(out).map((r: { owner: string }) => r.owner);
       expect(owners).not.toContain('ghost');
       expect(owners.sort()).toEqual(['foo', 'team']);
+    });
+  });
+  describe('row rendering and empty results', () => {
+    it('reports a repo whose status could not be read', async () => {
+      getRepoStatusMock.mockRejectedValue(new Error('not a git repo'));
+      const { out } = await runStatus(dir);
+      expect(out).toContain('error: not a git repo');
+    });
+
+    it('omits the commit column when there is no last commit', async () => {
+      getRepoStatusMock.mockResolvedValue({
+        branch: 'main',
+        detached: false,
+        dirty: false,
+        ahead: 0,
+        behind: 0,
+        stashes: 0,
+        lastCommit: null
+      });
+      const { out } = await runStatus(dir);
+      expect(out).toContain('main');
+      expect(out).not.toContain('abc1234');
+    });
+
+    it('groups several repos of one owner under a single owner node', async () => {
+      await mkdir(join(dir, 'comGithub', 'foo', 'b'), { recursive: true });
+      const { out } = await runStatus(dir);
+      // consola colors the repo names whenever colors are on (they are in CI,
+      // off when piped locally), so assert against the plain text.
+      const lines = stripAnsi(out).split('\n');
+      // one owner node for foo, with both repos hanging off it
+      expect(lines.filter((l) => l.trimEnd().endsWith('─foo'))).toHaveLength(1);
+      expect(lines.some((l) => /─a\s+✓/.test(l))).toBe(true);
+      expect(lines.some((l) => /─b\s+✓/.test(l))).toBe(true);
+    });
+
+    it('fuzzy-filters with --query', async () => {
+      const { out } = await runStatus(dir, {
+        query: 'team/api',
+        format: 'json'
+      });
+      const parsed = JSON.parse(out);
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0].owner).toBe('team');
+    });
+
+    it('reports an empty result set in pretty mode', async () => {
+      const empty = await mkdtemp(join(tmpdir(), 'forgemap-status-empty-'));
+      await writeFile(
+        join(empty, 'forgemap.config.ts'),
+        FIXTURE_CONFIG,
+        'utf8'
+      );
+      const info: string[] = [];
+      const spy = vi
+        .spyOn(consola, 'info')
+        .mockImplementation((...a: unknown[]) => info.push(String(a[0])));
+      await runStatus(empty);
+      expect(info.join()).toContain('No repos to report on.');
+      spy.mockRestore();
+      await rm(empty, { recursive: true, force: true });
+    });
+
+    it('falls back to the cwd when no config file is discovered', async () => {
+      const bare = await mkdtemp(join(tmpdir(), 'forgemap-status-bare-'));
+      await mkdir(join(bare, 'comGithub', 'foo', 'a'), { recursive: true });
+      const saved = process.cwd();
+      const savedXdg = process.env.XDG_CONFIG_HOME;
+      process.env.XDG_CONFIG_HOME = join(bare, 'xdg-empty');
+      process.chdir(bare);
+      try {
+        const { out } = await runCli(statusCommand, [
+          '--format',
+          'json',
+          '--no-cache'
+        ]);
+        expect(JSON.parse(out)[0].owner).toBe('foo');
+      } finally {
+        process.chdir(saved);
+        if (savedXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+        else process.env.XDG_CONFIG_HOME = savedXdg;
+        await rm(bare, { recursive: true, force: true });
+      }
     });
   });
 });

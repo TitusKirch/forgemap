@@ -109,4 +109,25 @@ describe('pathCommand', () => {
     const { out } = await runPath(dir, 'nobody/nothing');
     expect(out).toBe(join(dir, 'comGithub', 'nobody', 'nothing'));
   });
+  it('falls back to the cwd when no config file is discovered', async () => {
+    const bare = await mkdtemp(join(tmpdir(), 'forgemap-path-bare-'));
+    await mkdir(join(bare, 'comGithub', 'kirchDev', 'gildmaster'), {
+      recursive: true
+    });
+    const saved = process.cwd();
+    const savedXdg = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = join(bare, 'xdg-empty');
+    process.chdir(bare);
+    try {
+      const { out } = await runCli(pathCommand, ['kirchDev/gildmaster']);
+      expect(out.trim()).toBe(
+        join(bare, 'comGithub', 'kirchDev', 'gildmaster')
+      );
+    } finally {
+      process.chdir(saved);
+      if (savedXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = savedXdg;
+      await rm(bare, { recursive: true, force: true });
+    }
+  });
 });

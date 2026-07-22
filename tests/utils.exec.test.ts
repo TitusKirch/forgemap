@@ -46,3 +46,46 @@ describe('execCapture', () => {
     expect(result.code).not.toBe(0);
   });
 });
+
+describe('exec edge cases', () => {
+  it('hasCommand uses `where` on win32', async () => {
+    const saved = process.platform;
+    Object.defineProperty(process, 'platform', {
+      value: 'win32',
+      configurable: true
+    });
+    try {
+      // `where` does not exist on Linux, so the spawn errors out and the
+      // promise resolves false — which is the branch under test.
+      await expect(hasCommand('node')).resolves.toBe(false);
+    } finally {
+      Object.defineProperty(process, 'platform', {
+        value: saved,
+        configurable: true
+      });
+    }
+  });
+
+  it('execCapture rejects when the binary is missing and no timeout is set', async () => {
+    await expect(
+      execCapture('forgemap-definitely-not-installed-xyz', [])
+    ).rejects.toThrow();
+  });
+
+  it('execCapture reports code 0 for a signal kill that was not a timeout', async () => {
+    const result = await execCapture('node', [
+      '-e',
+      'process.kill(process.pid, "SIGTERM")'
+    ]);
+    expect(result.code).toBe(0);
+    expect(result.timedOut).toBe(false);
+  });
+
+  it('execInherit reports code 0 for a signal kill', async () => {
+    const result = await execInherit('node', [
+      '-e',
+      'process.kill(process.pid, "SIGTERM")'
+    ]);
+    expect(result.code).toBe(0);
+  });
+});
