@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import consola from 'consola';
+import { stripAnsi } from 'consola/utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runCli } from './helpers/citty.ts';
 
@@ -337,12 +338,13 @@ describe('statusCommand', () => {
     it('groups several repos of one owner under a single owner node', async () => {
       await mkdir(join(dir, 'comGithub', 'foo', 'b'), { recursive: true });
       const { out } = await runStatus(dir);
-      const ownerLines = out
-        .split('\n')
-        .filter((l) => l.includes('foo') && !l.includes('error'));
-      expect(out).toContain('a ');
-      expect(out).toContain('b ');
-      expect(ownerLines).toHaveLength(1);
+      // consola colors the repo names whenever colors are on (they are in CI,
+      // off when piped locally), so assert against the plain text.
+      const lines = stripAnsi(out).split('\n');
+      // one owner node for foo, with both repos hanging off it
+      expect(lines.filter((l) => l.trimEnd().endsWith('─foo'))).toHaveLength(1);
+      expect(lines.some((l) => /─a\s+✓/.test(l))).toBe(true);
+      expect(lines.some((l) => /─b\s+✓/.test(l))).toBe(true);
     });
 
     it('fuzzy-filters with --query', async () => {
