@@ -124,4 +124,62 @@ describe('openCommand', () => {
     expect(process.exitCode).toBe(1);
     process.exitCode = undefined;
   });
+  it('uses open on macOS', async () => {
+    delete process.env.WSL_DISTRO_NAME;
+    const savedPlatform = process.platform;
+    Object.defineProperty(process, 'platform', {
+      value: 'darwin',
+      configurable: true
+    });
+    try {
+      await runOpen(dir, 'foo/bar');
+      const [cmd, args] = spawnMock.mock.calls[0]!;
+      expect(cmd).toBe('open');
+      expect(args[0]).toBe(join(dir, 'comGithub', 'foo', 'bar'));
+    } finally {
+      Object.defineProperty(process, 'platform', {
+        value: savedPlatform,
+        configurable: true
+      });
+    }
+  });
+
+  it('reports any other spawn error verbatim', async () => {
+    delete process.env.WSL_DISTRO_NAME;
+    const handlers = new Map<string, (err: NodeJS.ErrnoException) => void>();
+    spawnMock.mockReturnValue({
+      on: vi.fn((event: string, fn: (err: NodeJS.ErrnoException) => void) => {
+        handlers.set(event, fn);
+      }),
+      unref: vi.fn()
+    });
+    process.exitCode = undefined;
+    await runOpen(dir, 'foo/bar');
+    const err = new Error('permission denied') as NodeJS.ErrnoException;
+    err.code = 'EACCES';
+    handlers.get('error')?.(err);
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined;
+  });
+
+  it('falls back to the cwd when no config file is discovered', async () => {
+    delete process.env.WSL_DISTRO_NAME;
+    const bare = await mkdtemp(join(tmpdir(), 'forgemap-open-bare-'));
+    await mkdir(join(bare, 'comGithub', 'foo', 'bar'), { recursive: true });
+    const saved = process.cwd();
+    const savedXdg = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = join(bare, 'xdg-empty');
+    process.chdir(bare);
+    try {
+      await runCli(openCommand, ['foo/bar']);
+      const [cmd, args] = spawnMock.mock.calls[0]!;
+      expect(cmd).toBe('xdg-open');
+      expect(args[0]).toBe(join(bare, 'comGithub', 'foo', 'bar'));
+    } finally {
+      process.chdir(saved);
+      if (savedXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = savedXdg;
+      await rm(bare, { recursive: true, force: true });
+    }
+  });
 });

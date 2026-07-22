@@ -106,4 +106,29 @@ describe('pickCommand', () => {
       else delete (process.stdin as unknown as Record<string, unknown>).isTTY;
     }
   });
+  it('prints nothing when the picker is cancelled', async () => {
+    await mkdir(join(dir, 'comGithub', 'foo', 'a'), { recursive: true });
+    await mkdir(join(dir, 'comGithub', 'foo', 'b'), { recursive: true });
+
+    const ttyDesc = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
+    Object.defineProperty(process.stdin, 'isTTY', {
+      configurable: true,
+      value: true
+    });
+    // A cancelled select resolves to a non-string, not a path.
+    const promptSpy = vi
+      .spyOn(consola, 'prompt')
+      .mockResolvedValue(undefined as unknown as string);
+    try {
+      const { out, exit } = await runPick(dir, { query: 'foo' });
+      expect(out).toBe('');
+      // cancelling is not a failure — nothing was picked, nothing printed
+      expect(exit).toBeUndefined();
+    } finally {
+      promptSpy.mockRestore();
+      if (ttyDesc) Object.defineProperty(process.stdin, 'isTTY', ttyDesc);
+      else delete (process.stdin as unknown as Record<string, unknown>).isTTY;
+      process.exitCode = undefined;
+    }
+  });
 });

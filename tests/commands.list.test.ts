@@ -1,7 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import consola from 'consola';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { listCommand } from '../src/commands/list.ts';
 import { runCli } from './helpers/citty.ts';
 
@@ -222,6 +223,102 @@ describe('listCommand', () => {
         '--filter=kirchDev'
       ]);
       expect(lines).toEqual(['kirchDev/forgemap-php']);
+    });
+  });
+  describe('output format resolution', () => {
+    let savedTTY: boolean | undefined;
+
+    beforeEach(() => {
+      savedTTY = process.stdout.isTTY;
+    });
+
+    afterEach(() => {
+      process.stdout.isTTY = savedTTY as boolean;
+    });
+
+    it('groups several repos under one owner in the tree', async () => {
+      const lines = await runList(dir, undefined, { format: 'pretty' });
+      expect(lines.some((l) => l.includes('forgemap-php'))).toBe(true);
+      expect(lines.some((l) => l.includes('laravel-pbac'))).toBe(true);
+      // one owner line for the two kirchDev repos (the repo lines carry the
+      // owner too, inside their localPath)
+      const ownerLines = lines.filter(
+        (l) => l.includes('kirchDev') && !l.includes('comGithub')
+      );
+      expect(ownerLines).toHaveLength(1);
+    });
+
+    it('rejects an unknown --format', async () => {
+      const res = await runCli(listCommand, [
+        '--format',
+        'yaml',
+        '--config',
+        join(dir, 'forgemap.config.ts')
+      ]);
+      expect(res.exit).toBe(1);
+    });
+
+    it('auto picks pretty in a TTY', async () => {
+      process.stdout.isTTY = true;
+      const lines = await runList(dir, 'forgemap', { format: 'auto' });
+      // the tree indents repos under their owner; a plain path listing does not
+      expect(lines.some((l) => l.includes('TitusKirch'))).toBe(true);
+      expect(lines.some((l) => l.trimStart() !== l)).toBe(true);
+    });
+
+    it('auto picks path when piped', async () => {
+      process.stdout.isTTY = false;
+      const lines = await runList(dir, 'forgemap', { format: 'auto' });
+      expect(lines).toContain(join(dir, 'comGithub', 'TitusKirch', 'forgemap'));
+    });
+
+    it('reports no matches for a query in pretty format', async () => {
+      const info: string[] = [];
+      const spy = vi
+        .spyOn(consola, 'info')
+        .mockImplementation((...a: unknown[]) => info.push(String(a[0])));
+      await runList(dir, 'zzz-no-such-thing-zzz', { format: 'pretty' });
+      expect(info.join()).toContain('No matches for "zzz-no-such-thing-zzz"');
+      spy.mockRestore();
+    });
+
+    it('reports an empty root in pretty format', async () => {
+      const empty = await mkdtemp(join(tmpdir(), 'forgemap-list-empty-'));
+      await writeFile(
+        join(empty, 'forgemap.config.ts'),
+        FIXTURE_CONFIG,
+        'utf8'
+      );
+      const info: string[] = [];
+      const spy = vi
+        .spyOn(consola, 'info')
+        .mockImplementation((...a: unknown[]) => info.push(String(a[0])));
+      await runList(empty, undefined, { format: 'pretty' });
+      expect(info.join()).toContain('No repos found.');
+      spy.mockRestore();
+      await rm(empty, { recursive: true, force: true });
+    });
+
+    it('falls back to the cwd when no config file is discovered', async () => {
+      const bare = await mkdtemp(join(tmpdir(), 'forgemap-list-bare-'));
+      await mkdir(join(bare, 'comGithub', 'TitusKirch', 'forgemap'), {
+        recursive: true
+      });
+      const saved = process.cwd();
+      const savedXdg = process.env.XDG_CONFIG_HOME;
+      process.env.XDG_CONFIG_HOME = join(bare, 'xdg-empty');
+      process.chdir(bare);
+      try {
+        // no --config and nothing to walk up to: the built-in defaults apply,
+        // rooted at the cwd
+        const res = await runCli(listCommand, ['--format', 'slug']);
+        expect(res.lines).toContain('TitusKirch/forgemap');
+      } finally {
+        process.chdir(saved);
+        if (savedXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+        else process.env.XDG_CONFIG_HOME = savedXdg;
+        await rm(bare, { recursive: true, force: true });
+      }
     });
   });
 });

@@ -178,12 +178,10 @@ function mergeForge(
   patch: ForgePatch,
   resultType: ForgeType
 ): MutableForge {
+  // `ForgePatch.protocol` can be null (editForge reads that as "clear it"), but
+  // this command never sets it — a protocol only ever goes away by leaving git.
   const protocol =
-    resultType === 'git'
-      ? patch.protocol === null
-        ? undefined
-        : (patch.protocol ?? currentProtocol)
-      : undefined;
+    resultType === 'git' ? (patch.protocol ?? currentProtocol) : undefined;
   return {
     type: resultType,
     host: patch.host ?? current.host,

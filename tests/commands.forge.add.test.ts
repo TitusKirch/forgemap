@@ -363,4 +363,114 @@ describe('forge add', () => {
       'export const notDefault = 1;\n'
     );
   });
+
+  it('rejects an empty forge key', async () => {
+    await writeFile(config, CONFIG);
+    const res = await runCli(forgeAddCommand, [
+      '   ',
+      '--type',
+      'github',
+      '--dir',
+      'd',
+      '--yes'
+    ]);
+    expect(res.exit).toBe(1);
+  });
+
+  it.each([
+    ['type', ['x', '--dir', 'd']],
+    ['directory', ['x', '--type', 'github']]
+  ])('requires a %s when non-interactive', async (_field, argv) => {
+    await writeFile(config, CONFIG);
+    const res = await runCli(forgeAddCommand, [...argv, '--yes']);
+    expect(res.exit).toBe(1);
+  });
+
+  it.each([
+    ['type', 1],
+    ['host', 2],
+    ['directory', 3]
+  ])('aborts when the %s prompt is cancelled', async (_field, step) => {
+    await writeFile(config, CONFIG);
+    setTTY(true);
+    const prompt = vi.spyOn(consola, 'prompt').mockResolvedValueOnce('work'); // key
+    // walk to the prompt under test, answering the earlier ones
+    const earlier = ['github', 'github.com'];
+    for (let i = 1; i < step; i++)
+      prompt.mockResolvedValueOnce(earlier[i - 1]!);
+    prompt.mockResolvedValueOnce(CANCELLED);
+    await runCli(forgeAddCommand, []);
+    expect(await readFile(config, 'utf8')).not.toContain('work: {');
+  });
+
+  it('falls back to the suggested host when the host prompt is left empty', async () => {
+    await writeFile(config, CONFIG);
+    setTTY(true);
+    vi.spyOn(consola, 'prompt')
+      .mockResolvedValueOnce('gl') // key
+      .mockResolvedValueOnce('gitlab') // type
+      .mockResolvedValueOnce('') // host → suggested
+      .mockResolvedValueOnce('comGitlab') // dir
+      .mockResolvedValueOnce(false) // set as default?
+      .mockResolvedValueOnce(true); // apply?
+    await runCli(forgeAddCommand, []);
+    expect(await readFile(config, 'utf8')).toContain("host: 'gitlab.com'");
+  });
+
+  it.each([
+    ['cancelled', CANCELLED],
+    ['not a protocol', 'ftp']
+  ])(
+    'adds a git forge without a protocol when the prompt is %s',
+    async (_case, answer) => {
+      await writeFile(config, CONFIG);
+      setTTY(true);
+      vi.spyOn(consola, 'prompt')
+        .mockResolvedValueOnce('work') // key
+        .mockResolvedValueOnce('git') // type
+        .mockResolvedValueOnce('git.example.com') // host
+        .mockResolvedValueOnce('work') // dir
+        .mockResolvedValueOnce(answer) // protocol
+        .mockResolvedValueOnce(false) // set as default?
+        .mockResolvedValueOnce(true); // apply?
+      await runCli(forgeAddCommand, []);
+      const written = await readFile(config, 'utf8');
+      expect(written).toContain('work: {');
+      expect(written).not.toContain('protocol');
+    }
+  );
+
+  it('renders the protocol into a freshly created config', async () => {
+    await runCli(forgeAddCommand, [
+      'work',
+      '--type',
+      'git',
+      '--host',
+      'git.example.com',
+      '--dir',
+      'work',
+      '--protocol',
+      'https',
+      '--yes'
+    ]);
+    expect(await readFile(config, 'utf8')).toContain("protocol: 'https'");
+  });
+
+  it('fails when the config to create is already there under another extension', async () => {
+    await mkdir('nested');
+    // --config names a file that does not exist, so `add` takes the create
+    // path — but writeConfigFile always writes forgemap.config.ts, which does.
+    await writeFile(join('nested', 'forgemap.config.ts'), CONFIG);
+    const res = await runCli(forgeAddCommand, [
+      'work',
+      '--type',
+      'github',
+      '--dir',
+      'd',
+      '--config',
+      join('nested', 'forgemap.config.mjs'),
+      '--yes'
+    ]);
+    expect(res.exit).toBe(1);
+  });
 });
