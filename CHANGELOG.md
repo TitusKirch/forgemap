@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.6.0](https://github.com/TitusKirch/forgemap/compare/v0.5.0...v0.6.0) (2026-07-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* `forgemap search` is removed; use `forgemap list`.
+
+### Features
+
+* complete flags and options in shell completion ([1fa1595](https://github.com/TitusKirch/forgemap/commit/1fa15955f01af69c16c713d74bb7e4184cfc7651)), closes [#73](https://github.com/TitusKirch/forgemap/issues/73)
+* **forge:** add interactive forge add/remove/edit commands ([f8e1984](https://github.com/TitusKirch/forgemap/commit/f8e198470c56aae6e9cf1cda6954d735f677a696)), closes [#78](https://github.com/TitusKirch/forgemap/issues/78)
+* replace search command with list ([268cd66](https://github.com/TitusKirch/forgemap/commit/268cd667fc70d5c19ae53d87a771fea0d7ae0aae)), closes [#72](https://github.com/TitusKirch/forgemap/issues/72)
+
+
+### Bug Fixes
+
+* **config:** resolve a relative --config path against the cwd ([8bc4a19](https://github.com/TitusKirch/forgemap/commit/8bc4a193bdf252782586b580380042000d52d55c))
+* **test:** assert the status tree against plain text, not colored output ([159a6d3](https://github.com/TitusKirch/forgemap/commit/159a6d3a91c2b75e76463903899cfad4061f97e2))
+
 ## [0.5.0](https://github.com/TitusKirch/forgemap/compare/v0.4.1...v0.5.0) (2026-07-18)
 
 
