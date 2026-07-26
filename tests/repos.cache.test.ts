@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -96,11 +96,19 @@ describe('scanReposCached', () => {
   it('invalidates when TTL is set to zero (and layout changed)', async () => {
     process.env.FORGEMAP_CACHE_TTL_MS = '0';
     const config = makeConfig();
-    await mkdir(join(dir, 'comGithub', 'foo', 'bar'), { recursive: true });
+    const owner = join(dir, 'comGithub', 'foo');
+    await mkdir(join(owner, 'bar'), { recursive: true });
     const first = await scanReposCached({ config, configDir: dir });
     expect(first).toHaveLength(1);
 
-    await mkdir(join(dir, 'comGithub', 'foo', 'baz'), { recursive: true });
+    // Pin the owner mtime back to what it was before the second repo
+    // appeared. Two clones inside one millisecond leave the mtime
+    // unmoved, which is how this went flaky on CI — the fingerprint has
+    // to notice the new name regardless.
+    const before = await stat(owner);
+    await mkdir(join(owner, 'baz'), { recursive: true });
+    await utimes(owner, before.atime, before.mtime);
+
     const second = await scanReposCached({ config, configDir: dir });
     expect(second.map((r) => r.slug).sort()).toEqual(['foo/bar', 'foo/baz']);
   });

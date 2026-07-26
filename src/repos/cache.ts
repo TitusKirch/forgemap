@@ -12,10 +12,9 @@ import { type ScannedRepo, scanRepos } from './scan.ts';
  *   1. Hot path (age < TTL): trust the file, return repos directly.
  *      No stat calls, no fingerprint walk — ~1 ms.
  *
- *   2. Cold path (age ≥ TTL): walk depth-3 mtimes (in parallel) and
- *      compare against the stored fingerprint. On match, bump the
- *      timestamp and return cached repos. On mismatch, rescan and
- *      rewrite the cache.
+ *   2. Cold path (age ≥ TTL): walk the layout (in parallel) and compare
+ *      against the stored fingerprint. On match, bump the timestamp and
+ *      return cached repos. On mismatch, rescan and rewrite the cache.
  *
  *   3. Incremental updates (appendCachedRepo / removeCachedRepo):
  *      forgemap-driven changes (clone, remove) edit the cache in-place
@@ -69,11 +68,21 @@ async function safeListDirs(path: string): Promise<string[]> {
   }
 }
 
+/** `[path, marker]` — the marker is whatever identifies that level's state. */
+type FingerprintEntry = [string, string];
+
 /**
- * Fingerprint of every directory mtime down to depth 3 (root, forge.dir,
- * owner). Catches new clones / removals at any of those levels. Stops
- * short of stat-ing each repo dir — that would mostly duplicate the
- * scan it's meant to avoid.
+ * Fingerprint of the layout: directory mtimes for root, forge.dir and
+ * every owner, plus the repo names each owner holds. Catches new clones
+ * / removals at any of those levels. Stops short of stat-ing each repo
+ * dir — that would mostly duplicate the scan it's meant to avoid.
+ *
+ * The repo names are what make the check reliable. An owner's mtime
+ * alone is not enough: a repo cloned beside an existing one moves only
+ * that mtime, and mtimes are compared at millisecond granularity, so
+ * two clones landing inside the same millisecond hash identically and
+ * a stale cache wins. Listing the names makes invalidation independent
+ * of clock and filesystem timestamp resolution.
  *
  * Stats are issued in parallel: one batch per forge for its forge.dir +
  * owner list, all forges in parallel. Beats the sequential version by
@@ -95,19 +104,29 @@ export async function computeFingerprint(
       const ownerEntries = await Promise.all(
         owners.map(async (owner) => {
           const ownerPath = join(forgeRoot, owner);
-          return [ownerPath, await safeStat(ownerPath)] as [string, number];
+          const [mtime, repos] = await Promise.all([
+            safeStat(ownerPath),
+            safeListDirs(ownerPath)
+          ]);
+          // readdir order is filesystem-dependent — sort for a stable hash.
+          // JSON quoting keeps names holding ':' or a newline unambiguous.
+          const marker = `${mtime}:${JSON.stringify(repos.sort())}`;
+          return [ownerPath, marker] as FingerprintEntry;
         })
       );
-      return [[forgeRoot, forgeMtime] as [string, number], ...ownerEntries];
+      return [
+        [forgeRoot, String(forgeMtime)] as FingerprintEntry,
+        ...ownerEntries
+      ];
     })
   );
 
-  const entries: Array<[string, number]> = [[root, await safeStat(root)]];
+  const entries: FingerprintEntry[] = [[root, String(await safeStat(root))]];
   for (const group of perForge) entries.push(...group);
 
   entries.sort((a, b) => a[0].localeCompare(b[0]));
   return createHash('sha1')
-    .update(entries.map(([p, m]) => `${p}:${m}`).join('\n'))
+    .update(entries.map(([p, marker]) => `${p}:${marker}`).join('\n'))
     .digest('hex');
 }
 
