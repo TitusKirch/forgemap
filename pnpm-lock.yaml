@@ -12,28 +12,28 @@ importers:
   .:
     dependencies:
       c12:
-        specifier: ^3.0.0
+        specifier: ^3.3.4
         version: 3.3.4(magicast@0.5.3)
       citty:
         specifier: ^0.2.2
         version: 0.2.2
       consola:
-        specifier: ^3.4.0
+        specifier: ^3.4.2
         version: 3.4.2
       defu:
-        specifier: ^6.1.4
+        specifier: ^6.1.7
         version: 6.1.7
       forgemap:
         specifier: 'link:'
         version: 'link:'
       fuse.js:
-        specifier: ^7.3.0
+        specifier: ^7.5.0
         version: 7.5.0
       magicast:
         specifier: ^0.5.3
         version: 0.5.3
       pathe:
-        specifier: ^2.0.0
+        specifier: ^2.0.3
         version: 2.0.3
     devDependencies:
       '@commitlint/cli':

@@ -64,14 +64,14 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "c12": "^3.0.0",
+    "c12": "^3.3.4",
     "citty": "^0.2.2",
-    "consola": "^3.4.0",
-    "defu": "^6.1.4",
+    "consola": "^3.4.2",
+    "defu": "^6.1.7",
     "forgemap": "link:",
-    "fuse.js": "^7.3.0",
+    "fuse.js": "^7.5.0",
     "magicast": "^0.5.3",
-    "pathe": "^2.0.0"
+    "pathe": "^2.0.3"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.0.1",
