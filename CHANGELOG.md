@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.0](https://github.com/TitusKirch/forgemap/compare/v0.6.0...v0.7.0) (2026-07-26)
+
+
+### Features
+
+* route questions, ideas and possible bugs to the Discord forum ([7c57ba1](https://github.com/TitusKirch/forgemap/commit/7c57ba13e58e67bb90514ff26db65ea414805a36))
+
+
+### Bug Fixes
+
+* align issue-template labels with the label catalog ([ddcbd68](https://github.com/TitusKirch/forgemap/commit/ddcbd680ad5faa74b7f2753b11f9b63254d820c9))
+* **deps:** update runtime dependencies to their latest minors ([a9992db](https://github.com/TitusKirch/forgemap/commit/a9992dbdc115ade9054ccd401ee8586a72f1db51))
+* invalidate the scan cache when a repo lands beside another ([315cf1f](https://github.com/TitusKirch/forgemap/commit/315cf1fa46f1b04c356feb3a823f7122ef0dd4e4))
+
 ## [0.6.0](https://github.com/TitusKirch/forgemap/compare/v0.5.0...v0.6.0) (2026-07-22)
 
 
