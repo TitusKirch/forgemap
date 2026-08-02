@@ -173,20 +173,37 @@ export function remoteBlocker(
   return state === 'gone' ? 'remote no longer exists' : 'remote unreachable';
 }
 
-/** Check each candidate's remote, grouped by forge so GitHub can batch. */
+/**
+ * Check each candidate's remote, grouped by forge **type and host** so an
+ * adapter can batch.
+ *
+ * The host is half the key, not a detail: two configured forges of one type —
+ * gitlab.com beside a self-hosted instance — are two different servers, and a
+ * batch spanning both would ask one of them about the other's projects. Where
+ * the same path exists on each (a public mirror of an internal project), that
+ * answers `exists` for the wrong server, and `remoteBlocker` reads `exists` as
+ * "safe to delete".
+ */
 export async function classifyRemotes(
   candidates: RepoEvaluation[]
 ): Promise<Map<string, RemoteCheckResult>> {
-  const byType = new Map<ForgeType, RepoEvaluation[]>();
+  const groups = new Map<
+    string,
+    { type: ForgeType; items: RepoEvaluation[] }
+  >();
   for (const c of candidates) {
-    const list = byType.get(c.repo.forge.type);
-    if (list) list.push(c);
-    else byType.set(c.repo.forge.type, [c]);
+    const { type, host } = c.repo.forge;
+    // A NUL separator: neither a type nor a host can contain one, so two
+    // different pairs can never collide into one key.
+    const key = `${type}\0${host}`;
+    const group = groups.get(key);
+    if (group) group.items.push(c);
+    else groups.set(key, { type, items: [c] });
   }
 
   const results = new Map<string, RemoteCheckResult>();
   await Promise.all(
-    Array.from(byType, async ([type, items]) => {
+    Array.from(groups.values(), async ({ type, items }) => {
       const inputs: RemoteCheckInput[] = items.map((c) => ({
         forge: c.repo.forge,
         owner: c.owner,

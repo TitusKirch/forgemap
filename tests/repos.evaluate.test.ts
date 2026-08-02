@@ -2,9 +2,17 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { ForgeMapConfig } from '../src/config/schema.ts';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../src/forges/registry.ts', () => ({
+  getForgeAdapter: vi.fn()
+}));
+
+import type { ForgeConfig, ForgeMapConfig } from '../src/config/schema.ts';
+import { getForgeAdapter } from '../src/forges/registry.ts';
+import type { RemoteCheckInput } from '../src/forges/types.ts';
 import {
+  classifyRemotes,
   findEmptyDirs,
   type GateOverrides,
   localBlocker,
@@ -174,5 +182,110 @@ describe('findEmptyDirs', () => {
 
     expect(await pruneEmptyDirs(dir, config)).toBe(3);
     expect(existsSync(join(dir, 'comGitlabAcme'))).toBe(false);
+  });
+});
+
+describe('classifyRemotes', () => {
+  const mockedAdapter = vi.mocked(getForgeAdapter);
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const acme: ForgeConfig = {
+    type: 'gitlab',
+    host: 'gitlab.acme.com',
+    dir: 'comGitlabAcme'
+  };
+  const dotCom: ForgeConfig = {
+    type: 'gitlab',
+    host: 'gitlab.com',
+    dir: 'comGitlab'
+  };
+
+  function candidate(forge: ForgeConfig, owner: string, name: string) {
+    return evaluation({
+      repo: {
+        forgeName: forge.dir,
+        forge,
+        owner,
+        repo: name,
+        slug: `${owner}/${name}`,
+        localPath: `/tmp/${forge.dir}/${owner}/${name}`
+      } as RepoEvaluation['repo'],
+      owner,
+      name
+    });
+  }
+
+  /** Record every batch the adapter is handed, answering `exists` for each. */
+  function recordingAdapter(batches: RemoteCheckInput[][]) {
+    mockedAdapter.mockReturnValue({
+      clone: async () => {},
+      checkRemotes: async (inputs: RemoteCheckInput[]) => {
+        batches.push(inputs);
+        return inputs.map(
+          (input) =>
+            ({
+              state: 'exists',
+              canonical: { owner: input.owner, repo: input.repo }
+            }) as const
+        );
+      }
+    });
+  }
+
+  it('never mixes two hosts into one batch', async () => {
+    const batches: RemoteCheckInput[][] = [];
+    recordingAdapter(batches);
+
+    const results = await classifyRemotes([
+      candidate(acme, 'group/sub', 'api'),
+      candidate(dotCom, 'kirchDev', 'gitlab-test'),
+      candidate(acme, 'group', 'web')
+    ]);
+
+    expect(batches).toHaveLength(2);
+    for (const batch of batches) {
+      const hosts = new Set(batch.map((i) => i.forge.host));
+      expect(hosts.size).toBe(1);
+    }
+    // Batching still holds within a host: two acme repos, one call.
+    expect(batches.map((b) => b.length).sort()).toEqual([1, 2]);
+    expect(results.size).toBe(3);
+    expect(results.get('/tmp/comGitlab/kirchDev/gitlab-test')).toEqual({
+      state: 'exists',
+      canonical: { owner: 'kirchDev', repo: 'gitlab-test' }
+    });
+  });
+
+  it('answers each candidate from its own host', async () => {
+    mockedAdapter.mockReturnValue({
+      clone: async () => {},
+      // Only the self-hosted instance still has the project; the mirror on
+      // gitlab.com is gone. Answering from the wrong host inverts both.
+      checkRemotes: async (inputs: RemoteCheckInput[]) =>
+        inputs.map((input) =>
+          input.forge.host === 'gitlab.acme.com'
+            ? ({
+                state: 'exists',
+                canonical: { owner: input.owner, repo: input.repo }
+              } as const)
+            : ({ state: 'gone' } as const)
+        )
+    });
+
+    const results = await classifyRemotes([
+      candidate(acme, 'group', 'mirror'),
+      candidate(dotCom, 'group', 'mirror')
+    ]);
+
+    expect(results.get('/tmp/comGitlabAcme/group/mirror')).toEqual({
+      state: 'exists',
+      canonical: { owner: 'group', repo: 'mirror' }
+    });
+    expect(results.get('/tmp/comGitlab/group/mirror')).toEqual({
+      state: 'gone'
+    });
   });
 });

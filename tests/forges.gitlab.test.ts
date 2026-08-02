@@ -296,6 +296,61 @@ describe('gitlabAdapter.checkRemotes (batch)', () => {
     });
   });
 
+  it('asks each host only about its own projects', async () => {
+    const other = {
+      type: 'gitlab' as const,
+      host: 'gitlab.com',
+      dir: 'comGitlab'
+    };
+    mockedHasCommand.mockResolvedValue(true);
+    mockedCapture.mockImplementation(async (_cmd, args: string[], opts) => {
+      const host = (opts as { env?: Record<string, string> } | undefined)?.env
+        ?.GITLAB_HOST;
+      const query = args[3] ?? '';
+      // Each server answers only for the project it actually hosts.
+      const hosted =
+        host === 'gitlab.acme.com' ? 'group/sub/api' : 'kirchDev/gitlab-test';
+      return {
+        code: 0,
+        stdout: JSON.stringify({
+          data: { r0: query.includes(hosted) ? { fullPath: hosted } : null }
+        }),
+        stderr: ''
+      };
+    });
+
+    const out = await gitlabAdapter.checkRemotes!([
+      { forge, owner: 'group/sub', repo: 'api' },
+      { forge: other, owner: 'kirchDev', repo: 'gitlab-test' }
+    ]);
+
+    expect(out).toEqual([
+      { state: 'exists', canonical: { owner: 'group/sub', repo: 'api' } },
+      {
+        state: 'exists',
+        canonical: { owner: 'kirchDev', repo: 'gitlab-test' }
+      }
+    ]);
+
+    const graphql = mockedCapture.mock.calls.filter(
+      (c) => c[1][1] === 'graphql'
+    );
+    expect(graphql).toHaveLength(2);
+    for (const [, args, opts] of graphql) {
+      const host = (opts as { env?: Record<string, string> } | undefined)?.env
+        ?.GITLAB_HOST;
+      const query = args[3] ?? '';
+      if (host === 'gitlab.acme.com') {
+        expect(query).toContain('group/sub/api');
+        expect(query).not.toContain('kirchDev/gitlab-test');
+      } else {
+        expect(host).toBe('gitlab.com');
+        expect(query).toContain('kirchDev/gitlab-test');
+        expect(query).not.toContain('group/sub/api');
+      }
+    }
+  });
+
   it('sends every input to REST when the GraphQL payload is unreadable', async () => {
     mockedHasCommand.mockResolvedValue(true);
     mockedCapture.mockImplementation(async (_cmd, args: string[]) => {

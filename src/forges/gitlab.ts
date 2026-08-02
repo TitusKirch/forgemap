@@ -129,8 +129,11 @@ export const gitlabAdapter: ForgeAdapter = {
    * GRAPHQL_CHUNK projects, and each miss — `null` could mean gone *or*
    * renamed — costs a single REST call to tell the two apart.
    *
-   * Every input in a batch belongs to one forge (the importer groups by
-   * server dir), so the host is taken from the first.
+   * A batch may span several configured GitLab forges, so the inputs are
+   * grouped by host before they are chunked: one server must never be asked
+   * about another's projects. Where the same full path exists on both — a
+   * public mirror of an internal project — the wrong server would otherwise
+   * answer `exists` for a project this one does not have.
    */
   async checkRemotes(inputs: RemoteCheckInput[]): Promise<RemoteCheckResult[]> {
     if (inputs.length === 0) return [];
@@ -140,37 +143,48 @@ export const gitlabAdapter: ForgeAdapter = {
         reason: 'glab not installed'
       }));
     }
-    const forge = inputs[0]!.forge;
 
     const results: (RemoteCheckResult | null)[] = Array.from(
       { length: inputs.length },
       () => null
     );
 
-    for (let start = 0; start < inputs.length; start += GRAPHQL_CHUNK) {
-      const chunk = inputs.slice(start, start + GRAPHQL_CHUNK);
-      const res = await execCapture(
-        'glab',
-        ['api', 'graphql', '-f', `query=${buildQuery(chunk)}`],
-        { timeoutMs: GLAB_TIMEOUT_MS, env: glabEnv(forge) }
-      );
-      type GraphqlData = Record<string, { fullPath?: string } | null>;
-      let data: GraphqlData | null = null;
-      try {
-        const parsed = JSON.parse(res.stdout) as {
-          data?: GraphqlData;
-        } & GraphqlData;
-        data = parsed.data ?? parsed;
-      } catch {
-        data = null;
-      }
-      for (let i = 0; i < chunk.length; i++) {
-        const node = data?.[`r${i}`];
-        const canonical = node?.fullPath ? splitFullPath(node.fullPath) : null;
-        if (canonical) {
-          results[start + i] = { state: 'exists', canonical };
+    const byHost = new Map<string, number[]>();
+    inputs.forEach((input, index) => {
+      const indices = byHost.get(input.forge.host);
+      if (indices) indices.push(index);
+      else byHost.set(input.forge.host, [index]);
+    });
+
+    for (const indices of byHost.values()) {
+      for (let start = 0; start < indices.length; start += GRAPHQL_CHUNK) {
+        const slice = indices.slice(start, start + GRAPHQL_CHUNK);
+        const chunk = slice.map((index) => inputs[index]!);
+        const res = await execCapture(
+          'glab',
+          ['api', 'graphql', '-f', `query=${buildQuery(chunk)}`],
+          { timeoutMs: GLAB_TIMEOUT_MS, env: glabEnv(chunk[0]!.forge) }
+        );
+        type GraphqlData = Record<string, { fullPath?: string } | null>;
+        let data: GraphqlData | null = null;
+        try {
+          const parsed = JSON.parse(res.stdout) as {
+            data?: GraphqlData;
+          } & GraphqlData;
+          data = parsed.data ?? parsed;
+        } catch {
+          data = null;
         }
-        // Left null → resolved via REST fallback below.
+        for (let i = 0; i < chunk.length; i++) {
+          const node = data?.[`r${i}`];
+          const canonical = node?.fullPath
+            ? splitFullPath(node.fullPath)
+            : null;
+          if (canonical) {
+            results[slice[i]!] = { state: 'exists', canonical };
+          }
+          // Left null → resolved via REST fallback below.
+        }
       }
     }
 
