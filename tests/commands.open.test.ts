@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -18,6 +18,7 @@ vi.mock('node:child_process', async () => {
 });
 
 import { openCommand } from '../src/commands/open.ts';
+import { seedRepo } from './helpers/layout.ts';
 
 const FIXTURE_CONFIG = `export default {
   root: '.',
@@ -51,12 +52,8 @@ describe('openCommand', () => {
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'forgemap-open-'));
     await writeFile(join(dir, 'forgemap.config.ts'), FIXTURE_CONFIG, 'utf8');
-    await mkdir(join(dir, 'comGithub', 'kirchDev', 'gildmaster'), {
-      recursive: true
-    });
-    await mkdir(join(dir, 'comGithub', 'acme', 'gildhall'), {
-      recursive: true
-    });
+    await seedRepo(dir, 'comGithub', 'kirchDev', 'gildmaster');
+    await seedRepo(dir, 'comGithub', 'acme', 'gildhall');
     spawnMock.mockReset();
     spawnMock.mockReturnValue(fakeChild());
     originalDistro = process.env.WSL_DISTRO_NAME;
@@ -165,7 +162,7 @@ describe('openCommand', () => {
   it('falls back to the cwd when no config file is discovered', async () => {
     delete process.env.WSL_DISTRO_NAME;
     const bare = await mkdtemp(join(tmpdir(), 'forgemap-open-bare-'));
-    await mkdir(join(bare, 'comGithub', 'foo', 'bar'), { recursive: true });
+    await seedRepo(bare, 'comGithub', 'foo', 'bar');
     const saved = process.cwd();
     const savedXdg = process.env.XDG_CONFIG_HOME;
     process.env.XDG_CONFIG_HOME = join(bare, 'xdg-empty');

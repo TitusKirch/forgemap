@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'pathe';
 import type { ForgeMapConfig } from '../config/schema.ts';
 import { resolveRoot } from '../utils/path.ts';
-import { type ScannedRepo, scanRepos } from './scan.ts';
+import { type ScannedRepo, scanLayout } from './scan.ts';
 
 /**
  * Cache lifecycle:
@@ -48,86 +48,18 @@ function cachePath(root: string): string {
   return join(cacheDir(), `scan-${hash}.json`);
 }
 
-async function safeStat(path: string): Promise<number> {
-  try {
-    const s = await stat(path);
-    return Math.trunc(s.mtimeMs);
-  } catch {
-    return 0;
-  }
-}
-
-async function safeListDirs(path: string): Promise<string[]> {
-  try {
-    const entries = await readdir(path, { withFileTypes: true });
-    return entries
-      .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
-      .map((e) => e.name);
-  } catch {
-    return [];
-  }
-}
-
-/** `[path, marker]` — the marker is whatever identifies that level's state. */
-type FingerprintEntry = [string, string];
-
 /**
- * Fingerprint of the layout: directory mtimes for root, forge.dir and
- * every owner, plus the repo names each owner holds. Catches new clones
- * / removals at any of those levels. Stops short of stat-ing each repo
- * dir — that would mostly duplicate the scan it's meant to avoid.
- *
- * The repo names are what make the check reliable. An owner's mtime
- * alone is not enough: a repo cloned beside an existing one moves only
- * that mtime, and mtimes are compared at millisecond granularity, so
- * two clones landing inside the same millisecond hash identically and
- * a stale cache wins. Listing the names makes invalidation independent
- * of clock and filesystem timestamp resolution.
- *
- * Stats are issued in parallel: one batch per forge for its forge.dir +
- * owner list, all forges in parallel. Beats the sequential version by
- * an order of magnitude at thousands of owners.
+ * Fingerprint of the layout, computed by the same walk that finds the repos —
+ * see {@link scanLayout}, which owns what goes into it. Since a directory is
+ * only known to be a repo once its entries have been read, the fingerprint
+ * cannot be cheaper than the scan; producing both from one walk is what keeps
+ * the cold path from paying for the tree twice.
  */
 export async function computeFingerprint(
   config: ForgeMapConfig,
   configDir: string
 ): Promise<string> {
-  const root = resolveRoot(config.root, configDir);
-
-  const perForge = await Promise.all(
-    Object.values(config.forges).map(async (forge) => {
-      const forgeRoot = join(root, forge.dir);
-      const [forgeMtime, owners] = await Promise.all([
-        safeStat(forgeRoot),
-        safeListDirs(forgeRoot)
-      ]);
-      const ownerEntries = await Promise.all(
-        owners.map(async (owner) => {
-          const ownerPath = join(forgeRoot, owner);
-          const [mtime, repos] = await Promise.all([
-            safeStat(ownerPath),
-            safeListDirs(ownerPath)
-          ]);
-          // readdir order is filesystem-dependent — sort for a stable hash.
-          // JSON quoting keeps names holding ':' or a newline unambiguous.
-          const marker = `${mtime}:${JSON.stringify(repos.sort())}`;
-          return [ownerPath, marker] as FingerprintEntry;
-        })
-      );
-      return [
-        [forgeRoot, String(forgeMtime)] as FingerprintEntry,
-        ...ownerEntries
-      ];
-    })
-  );
-
-  const entries: FingerprintEntry[] = [[root, String(await safeStat(root))]];
-  for (const group of perForge) entries.push(...group);
-
-  entries.sort((a, b) => a[0].localeCompare(b[0]));
-  return createHash('sha1')
-    .update(entries.map(([p, marker]) => `${p}:${marker}`).join('\n'))
-    .digest('hex');
+  return (await scanLayout({ config, configDir })).fingerprint;
 }
 
 async function readCacheFile(file: string): Promise<CacheFile | null> {
@@ -167,23 +99,30 @@ export async function scanReposCached(
       if (trustTtl && age < ttl()) {
         return cached.repos;
       }
-      const fingerprint = await computeFingerprint(config, configDir);
-      if (cached.fingerprint === fingerprint) {
+      // Validating the fingerprint walks the tree, and that walk already
+      // carries the repos — so keep them rather than re-scanning on a miss.
+      const scan = await scanLayout({ config, configDir });
+      if (cached.fingerprint === scan.fingerprint) {
         // Still accurate — refresh the timestamp so the next reader can hot-path.
         await writeCacheFile(file, { ...cached, writtenAt: Date.now() });
         return cached.repos;
       }
+      await writeCacheFile(file, {
+        fingerprint: scan.fingerprint,
+        writtenAt: Date.now(),
+        repos: scan.repos
+      });
+      return scan.repos;
     }
   }
 
-  const repos = await scanRepos({ config, configDir });
-  const fingerprint = await computeFingerprint(config, configDir);
+  const scan = await scanLayout({ config, configDir });
   await writeCacheFile(file, {
-    fingerprint,
+    fingerprint: scan.fingerprint,
     writtenAt: Date.now(),
-    repos
+    repos: scan.repos
   });
-  return repos;
+  return scan.repos;
 }
 
 /**

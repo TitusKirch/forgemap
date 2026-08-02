@@ -19,6 +19,7 @@ vi.mock('../src/repos/git.ts', () => ({
 
 import { statusCommand } from '../src/commands/status.ts';
 import { __test } from '../src/repos/cache.ts';
+import { seedRepo } from './helpers/layout.ts';
 
 const FIXTURE_CONFIG = `export default {
   root: '.',
@@ -33,8 +34,8 @@ const FIXTURE_CONFIG = `export default {
 async function setup(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'forgemap-status-'));
   await writeFile(join(dir, 'forgemap.config.ts'), FIXTURE_CONFIG, 'utf8');
-  await mkdir(join(dir, 'comGithub', 'foo', 'a'), { recursive: true });
-  await mkdir(join(dir, 'comGitlabAcme', 'team', 'api'), { recursive: true });
+  await seedRepo(dir, 'comGithub', 'foo', 'a');
+  await seedRepo(dir, 'comGitlabAcme', 'team', 'api');
   return dir;
 }
 
@@ -336,7 +337,7 @@ describe('statusCommand', () => {
     });
 
     it('groups several repos of one owner under a single owner node', async () => {
-      await mkdir(join(dir, 'comGithub', 'foo', 'b'), { recursive: true });
+      await seedRepo(dir, 'comGithub', 'foo', 'b');
       const { out } = await runStatus(dir);
       // consola colors the repo names whenever colors are on (they are in CI,
       // off when piped locally), so assert against the plain text.
@@ -376,7 +377,7 @@ describe('statusCommand', () => {
 
     it('falls back to the cwd when no config file is discovered', async () => {
       const bare = await mkdtemp(join(tmpdir(), 'forgemap-status-bare-'));
-      await mkdir(join(bare, 'comGithub', 'foo', 'a'), { recursive: true });
+      await seedRepo(bare, 'comGithub', 'foo', 'a');
       const saved = process.cwd();
       const savedXdg = process.env.XDG_CONFIG_HOME;
       process.env.XDG_CONFIG_HOME = join(bare, 'xdg-empty');
