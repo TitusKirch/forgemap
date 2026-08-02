@@ -112,7 +112,9 @@ async function discoverBelow(
   segments: string[],
   found: DiscoveredRepo[]
 ): Promise<void> {
-  if (segments.length >= MAX_SCAN_DEPTH) return;
+  // Inclusive of the repo's own segment, exactly as the scanner counts it:
+  // `import` must be able to adopt every path `list` would go on to show.
+  if (segments.length > MAX_SCAN_DEPTH) return;
   const entries = await readEntries(dirPath);
   const isLeaf = entries === null || entries.dirs.length === 0;
 

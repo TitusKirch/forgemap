@@ -8,14 +8,20 @@ import type { ForgeType } from '../config/schema.ts';
  */
 
 /**
- * How many path segments below `<forge.dir>` the scanner will visit. Deeper
- * than any real namespace, shallow enough that a stray tree under `root` stops
- * the walk instead of paying for it. Deliberately *not* a config key: raising
- * it would paper over a layout problem rather than fix one.
+ * How many path segments below `<forge.dir>` the scanner will visit, the
+ * repo's own segment included — so a repo at this depth is still found and
+ * only what lies below it is refused. Deeper than any real namespace, shallow
+ * enough that a stray tree under `root` stops the walk instead of paying for
+ * it. Deliberately *not* a config key: raising it would paper over a layout
+ * problem rather than fix one.
  */
 export const MAX_SCAN_DEPTH = 10;
 
-/** A repo occupies the last segment, so the namespace gets the rest. */
+/**
+ * A repo occupies the last segment, so the namespace gets the rest. This is
+ * what ties the two limits together: a namespace at exactly this depth puts
+ * its repo on {@link MAX_SCAN_DEPTH}, which the walk still reaches.
+ */
 export const MAX_NAMESPACE_DEPTH = MAX_SCAN_DEPTH - 1;
 
 /**

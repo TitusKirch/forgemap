@@ -93,15 +93,19 @@ interface WalkContext {
  * marker and never descends into a repo, which keeps submodules and nested
  * checkouts out without a special case for either.
  *
- * `segments` is the namespace accumulated below the forge dir; the repo takes
- * the last one, so a repo needs at least two.
+ * `segments` is the path accumulated below the forge dir; the repo takes the
+ * last one and the namespace the rest, so a repo needs at least two.
+ *
+ * The cap counts those segments inclusive of the repo's own — a namespace at
+ * exactly MAX_NAMESPACE_DEPTH must still have its repo visited, or the
+ * resolver would accept a path the scanner can never find.
  */
 async function walk(
   ctx: WalkContext,
   dirPath: string,
   segments: string[]
 ): Promise<void> {
-  if (segments.length >= MAX_SCAN_DEPTH) {
+  if (segments.length > MAX_SCAN_DEPTH) {
     ctx.hints.push({ path: dirPath, reason: 'too-deep' });
     return;
   }

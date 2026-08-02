@@ -18,6 +18,9 @@ describe('namespaceDepthLimit', () => {
     expect(namespaceDepthLimit(type)).toBe(expected);
   });
 
+  // Arithmetic between two constants, and nothing more: that a repo at the
+  // cap is actually *reachable* is a property of the walk, guarded by the
+  // boundary cases in `repos.scan.test.ts`.
   it('leaves the repo segment room inside the scan cap', () => {
     expect(MAX_NAMESPACE_DEPTH).toBe(MAX_SCAN_DEPTH - 1);
   });

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ForgeMapConfig } from '../src/config/schema.ts';
+import { MAX_NAMESPACE_DEPTH } from '../src/repos/layout.ts';
 import { scanLayout, scanRepos } from '../src/repos/scan.ts';
 
 function makeConfig(overrides: Partial<ForgeMapConfig> = {}): ForgeMapConfig {
@@ -104,6 +105,28 @@ describe('scanRepos', () => {
     expect(r).toEqual([]);
   });
 
+  it('reaches a repo whose namespace sits exactly at the cap', async () => {
+    const namespace = Array.from(
+      { length: MAX_NAMESPACE_DEPTH },
+      (_, i) => `n${i}`
+    );
+    await repo('comGitlabAcme', ...namespace, 'api');
+
+    const r = await scanRepos({ config: makeConfig(), configDir: dir });
+    expect(r.map((x) => x.slug)).toEqual([`${namespace.join('/')}/api`]);
+  });
+
+  it('leaves a repo one namespace segment past the cap unscanned', async () => {
+    const namespace = Array.from(
+      { length: MAX_NAMESPACE_DEPTH + 1 },
+      (_, i) => `n${i}`
+    );
+    await repo('comGitlabAcme', ...namespace, 'api');
+
+    const r = await scanRepos({ config: makeConfig(), configDir: dir });
+    expect(r).toEqual([]);
+  });
+
   it('ignores dotfile directories', async () => {
     await mkdir(join(dir, 'comGithub', '.cache', 'something'), {
       recursive: true
@@ -170,6 +193,28 @@ describe('scanLayout hints', () => {
       configDir: dir
     });
     expect(hints.map((h) => h.reason)).toEqual(['too-deep']);
+  });
+
+  it('reports the repo that sits one segment past the cap', async () => {
+    const namespace = Array.from(
+      { length: MAX_NAMESPACE_DEPTH + 1 },
+      (_, i) => `n${i}`
+    );
+    await mkdir(join(dir, 'comGitlabAcme', ...namespace, 'api', '.git'), {
+      recursive: true
+    });
+
+    const { repos, hints } = await scanLayout({
+      config: makeConfig(),
+      configDir: dir
+    });
+    expect(repos).toEqual([]);
+    expect(hints).toEqual([
+      {
+        path: join(dir, 'comGitlabAcme', ...namespace, 'api'),
+        reason: 'too-deep'
+      }
+    ]);
   });
 
   it('has nothing to report for a clean layout', async () => {
