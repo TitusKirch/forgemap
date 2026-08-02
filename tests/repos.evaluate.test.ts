@@ -1,8 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { ForgeMapConfig } from '../src/config/schema.ts';
 import {
+  findEmptyDirs,
   type GateOverrides,
   localBlocker,
   localGateOverride,
+  pruneEmptyDirs,
   type RepoEvaluation,
   remoteBlocker
 } from '../src/repos/evaluate.ts';
@@ -105,5 +112,67 @@ describe('remoteBlocker', () => {
     expect(remoteBlocker('gone')).toBe('remote no longer exists');
     expect(remoteBlocker('unknown')).toBe('remote unreachable');
     expect(remoteBlocker(undefined)).toBe('remote unreachable');
+  });
+});
+
+describe('findEmptyDirs', () => {
+  let dir: string;
+
+  const config: ForgeMapConfig = {
+    root: '.',
+    defaultForge: 'work',
+    forges: {
+      work: { type: 'gitlab', host: 'gitlab.acme.com', dir: 'comGitlabAcme' }
+    }
+  };
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'forgemap-empty-'));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('collects a nested namespace left behind by a delete, deepest first', async () => {
+    await mkdir(join(dir, 'comGitlabAcme', 'group', 'sub'), {
+      recursive: true
+    });
+
+    expect(await findEmptyDirs(dir, config)).toEqual([
+      join(dir, 'comGitlabAcme', 'group', 'sub'),
+      join(dir, 'comGitlabAcme', 'group'),
+      join(dir, 'comGitlabAcme')
+    ]);
+  });
+
+  it('keeps a namespace that still holds a repo', async () => {
+    await mkdir(join(dir, 'comGitlabAcme', 'group', 'sub', 'api', '.git'), {
+      recursive: true
+    });
+    await mkdir(join(dir, 'comGitlabAcme', 'group', 'gone'), {
+      recursive: true
+    });
+
+    expect(await findEmptyDirs(dir, config)).toEqual([
+      join(dir, 'comGitlabAcme', 'group', 'gone')
+    ]);
+  });
+
+  it('never walks into a repo, however empty its subdirectories are', async () => {
+    const repo = join(dir, 'comGitlabAcme', 'group', 'api');
+    await mkdir(join(repo, '.git'), { recursive: true });
+    await mkdir(join(repo, 'src', 'empty'), { recursive: true });
+
+    expect(await findEmptyDirs(dir, config)).toEqual([]);
+  });
+
+  it('removes what it found, bottom-up', async () => {
+    await mkdir(join(dir, 'comGitlabAcme', 'group', 'sub'), {
+      recursive: true
+    });
+
+    expect(await pruneEmptyDirs(dir, config)).toBe(3);
+    expect(existsSync(join(dir, 'comGitlabAcme'))).toBe(false);
   });
 });
