@@ -1,13 +1,18 @@
 /**
  * Multi-scenario benchmark for scanRepos / scanReposCached.
  *
- * Runs ten scenarios across four groups and emits a consolidated
+ * Runs twelve scenarios across five groups and emits a consolidated
  * table plus bench/results.json so trends can be tracked over time.
  *
  *   A  Real-world baselines (1–4)
  *   B  Geometry at fixed total (5–7)
  *   C  Forge-count effect (8)
  *   D  Mixed workloads (9 search + fuse, 10 invalidation cycle)
+ *   E  Namespace depth (11–12) — GitLab subgroups at a fixed repo count
+ *
+ * Every repo is seeded with a `.git` marker, because that is what makes a
+ * directory a repo: the walk has to read each candidate's entries to classify
+ * it, so the marker check is measured here rather than assumed free.
  *
  * Each standard scenario reports three medians (cold scan, cache hit,
  * cache rebuild) over FORGEMAP_BENCH_RUNS samples (default 5).
@@ -31,11 +36,17 @@ interface Layout {
   forges: number;
   owners: number;
   repos: number;
+  /**
+   * Namespace segments above each repo. `1` is the flat `<owner>/<repo>` every
+   * forge but GitLab uses; more nests the way subgroups do, which is the
+   * geometry the variable-depth walk exists for.
+   */
+  depth?: number;
 }
 
 interface Scenario {
   id: number;
-  group: 'A' | 'B' | 'C' | 'D';
+  group: 'A' | 'B' | 'C' | 'D' | 'E';
   name: string;
   layout: Layout;
   kind: 'standard' | 'fuse' | 'invalidation';
@@ -119,6 +130,22 @@ const SCENARIOS: Scenario[] = [
     name: 'Invalidation',
     layout: { forges: 1, owners: 50, repos: 10 },
     kind: 'invalidation'
+  },
+  // E — Namespace depth. Same repo count throughout, so the only thing moving
+  // is how many directory levels the walk crosses to reach each `.git`.
+  {
+    id: 11,
+    group: 'E',
+    name: 'Subgroups ×2',
+    layout: { forges: 1, owners: 50, repos: 10, depth: 2 },
+    kind: 'standard'
+  },
+  {
+    id: 12,
+    group: 'E',
+    name: 'Subgroups ×4',
+    layout: { forges: 1, owners: 50, repos: 10, depth: 4 },
+    kind: 'standard'
   }
 ];
 
@@ -126,7 +153,8 @@ const GROUP_LABEL: Record<Scenario['group'], string> = {
   A: 'Real-world baselines',
   B: 'Geometry @ fixed total',
   C: 'Forge-count effect',
-  D: 'Mixed workloads'
+  D: 'Mixed workloads',
+  E: 'Namespace depth'
 };
 
 interface PhaseResult {
@@ -146,17 +174,28 @@ interface ScenarioResult {
   phases: PhaseResult[];
 }
 
+/**
+ * Seed a layout the scanner will actually recognise: every repo carries a
+ * `.git` directory, since a bare directory is no longer a repo. That marker is
+ * the cost this benchmark exists to keep honest — classifying a directory
+ * means reading its entries, so the scan pays one extra readdir per repo that
+ * the old fixed-depth walk never issued.
+ */
 async function seed(root: string, layout: Layout): Promise<ForgeMapConfig> {
   const forges: ForgeMapConfig['forges'] = {};
+  const depth = layout.depth ?? 1;
   for (let f = 0; f < layout.forges; f++) {
     const name = `forge${f}`;
     forges[name] = { type: 'git', host: `h${f}.example.com`, dir: `dir${f}` };
     for (let o = 0; o < layout.owners; o++) {
-      const ownerDir = join(root, `dir${f}`, `owner${o}`);
+      // Nest the namespace `depth` levels deep: owner0/sub1/…/subN.
+      const segments = [`owner${o}`];
+      for (let d = 1; d < depth; d++) segments.push(`sub${d}`);
+      const ownerDir = join(root, `dir${f}`, ...segments);
       // Use mkdir per owner with recursive then per-repo mkdir; cheaper than O(N) recursive each.
       await mkdir(ownerDir, { recursive: true });
       for (let r = 0; r < layout.repos; r++) {
-        await mkdir(join(ownerDir, `repo${r}`));
+        await mkdir(join(ownerDir, `repo${r}`, '.git'), { recursive: true });
       }
     }
   }
@@ -347,7 +386,8 @@ function fmtPct(n: number): string {
 }
 
 function fmtLayout(l: Layout): string {
-  return `${String(l.forges).padStart(1)}× ${String(l.owners).padStart(4)}× ${String(l.repos).padStart(3)}`;
+  const depth = l.depth && l.depth > 1 ? `/${l.depth}` : '  ';
+  return `${String(l.forges).padStart(1)}× ${String(l.owners).padStart(4)}${depth}× ${String(l.repos).padStart(3)}`;
 }
 
 function fmtTotal(n: number): string {
