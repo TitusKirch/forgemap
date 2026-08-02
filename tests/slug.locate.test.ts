@@ -102,8 +102,16 @@ describe('locateRepo', () => {
   });
 
   it('throws on a malformed slug rather than fuzzy-matching it', async () => {
-    await expect(locateRepo('foo/bar/baz', options)).rejects.toThrow(
+    await expect(locateRepo('not@a@slug/', options)).rejects.toThrow(
       /Unrecognized/
+    );
+  });
+
+  it('reports a too-deep namespace rather than fuzzy-matching it', async () => {
+    // Shaped like a slug and rejected as one — the default forge is github,
+    // which has no subgroups — never silently degraded into a fuzzy query.
+    await expect(locateRepo('foo/bar/baz', options)).rejects.toThrow(
+      /does not support nested namespaces/
     );
   });
 
