@@ -10,6 +10,7 @@ import type { RemoteCheckInput, RemoteCheckResult } from '../forges/types.ts';
 import { mapLimit } from '../utils/concurrency.ts';
 import { parseSlug } from '../slug/parse.ts';
 import { getOriginUrl, getRemotes, isGitRepo, type GitRemote } from './git.ts';
+import { GIT_MARKER, MAX_SCAN_DEPTH } from './layout.ts';
 
 /** Layout kinds importable today. `forgemap` = the `<server>/<owner>/<repo>`
  *  tree forgemap itself manages. Kept as an enum to extend later. */
@@ -27,6 +28,7 @@ export interface ImportOptions {
 
 export interface DiscoveredRepo {
   serverDir: string;
+  /** Namespace path — one segment on a flat forge, several where they nest. */
   owner: string;
   repo: string;
   localPath: string;
@@ -73,42 +75,78 @@ export interface ImportResult {
   reports: RepoReport[];
 }
 
-async function listDirs(path: string): Promise<string[]> {
+interface DirEntries {
+  dirs: string[];
+  isRepo: boolean;
+}
+
+async function readEntries(path: string): Promise<DirEntries | null> {
   try {
     const entries = await readdir(path, { withFileTypes: true });
-    return entries
-      .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
-      .map((e) => e.name);
+    return {
+      dirs: entries
+        .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
+        .map((e) => e.name),
+      isRepo: entries.some((e) => e.name === GIT_MARKER)
+    };
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw error;
   }
 }
 
 /**
- * Structure-driven depth-3 walk of `<path>/<serverDir>/<owner>/<repo>`.
- * Unlike `scanRepos`, this is config-free: every top-level directory is a
- * candidate server dir, and the names are discovered rather than configured.
+ * Structure-driven walk of `<path>/<serverDir>/<namespace…>/<repo>`. Unlike
+ * `scanRepos` this is config-free: every top-level directory is a candidate
+ * server dir, and the names are discovered rather than configured.
+ *
+ * A `.git` entry ends a branch, so a nested namespace is adopted as readily as
+ * a flat one and a repo's own subdirectories are never mistaken for more of
+ * the layout. A branch that dead-ends without one is still surfaced — that is
+ * the candidate `analyzeLocal` reports as `not-a-git-repo`, which is the whole
+ * reason `import` looks at directories a scan would simply skip.
  */
+async function discoverBelow(
+  serverDir: string,
+  dirPath: string,
+  segments: string[],
+  found: DiscoveredRepo[]
+): Promise<void> {
+  if (segments.length >= MAX_SCAN_DEPTH) return;
+  const entries = await readEntries(dirPath);
+  const isLeaf = entries === null || entries.dirs.length === 0;
+
+  if (segments.length >= 2 && (entries?.isRepo || isLeaf)) {
+    found.push({
+      serverDir,
+      owner: segments.slice(0, -1).join('/'),
+      repo: segments.at(-1)!,
+      localPath: dirPath
+    });
+    return;
+  }
+  if (entries === null || entries.isRepo) return;
+
+  for (const name of entries.dirs) {
+    await discoverBelow(
+      serverDir,
+      join(dirPath, name),
+      [...segments, name],
+      found
+    );
+  }
+}
+
 export async function discoverForgemapLayout(
   path: string
 ): Promise<DiscoveredRepo[]> {
-  const repos: DiscoveredRepo[] = [];
-  for (const serverDir of await listDirs(path)) {
-    const serverPath = join(path, serverDir);
-    for (const owner of await listDirs(serverPath)) {
-      const ownerPath = join(serverPath, owner);
-      for (const repo of await listDirs(ownerPath)) {
-        repos.push({
-          serverDir,
-          owner,
-          repo,
-          localPath: join(ownerPath, repo)
-        });
-      }
-    }
+  const root = await readEntries(path);
+  if (!root) return [];
+  const found: DiscoveredRepo[] = [];
+  for (const serverDir of root.dirs) {
+    await discoverBelow(serverDir, join(path, serverDir), [], found);
   }
-  return repos;
+  return found;
 }
 
 function forgeTypeForHost(host: string): ForgeType {

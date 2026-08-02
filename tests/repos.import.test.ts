@@ -119,6 +119,48 @@ describe('discoverForgemapLayout', () => {
     ).toEqual(['github.com/foo/bar', 'github.com/foo/baz']);
   });
 
+  it('adopts a repo under a nested namespace', async () => {
+    await mkdir(join(dir, 'gitlab.acme.com', 'group', 'sub', 'api', '.git'), {
+      recursive: true
+    });
+
+    const found = await discoverForgemapLayout(dir);
+    expect(found).toEqual([
+      {
+        serverDir: 'gitlab.acme.com',
+        owner: 'group/sub',
+        repo: 'api',
+        localPath: join(dir, 'gitlab.acme.com', 'group', 'sub', 'api')
+      }
+    ]);
+  });
+
+  it('still surfaces a plain directory so it can be reported', async () => {
+    await mkdir(join(dir, 'github.com', 'foo', 'not-a-repo'), {
+      recursive: true
+    });
+
+    const found = await discoverForgemapLayout(dir);
+    expect(found.map((r) => `${r.owner}/${r.repo}`)).toEqual([
+      'foo/not-a-repo'
+    ]);
+  });
+
+  it('never descends into a repo', async () => {
+    await mkdir(join(dir, 'github.com', 'foo', 'bar', '.git'), {
+      recursive: true
+    });
+    await mkdir(
+      join(dir, 'github.com', 'foo', 'bar', 'vendor', 'sub', '.git'),
+      {
+        recursive: true
+      }
+    );
+
+    const found = await discoverForgemapLayout(dir);
+    expect(found.map((r) => `${r.owner}/${r.repo}`)).toEqual(['foo/bar']);
+  });
+
   it('returns empty for a missing path', async () => {
     expect(await discoverForgemapLayout(join(dir, 'nope'))).toEqual([]);
   });
