@@ -1,3 +1,4 @@
+import type { Dirent } from 'node:fs';
 import { readdir, rmdir } from 'node:fs/promises';
 import { join } from 'pathe';
 import type { ForgeMapConfig, ForgeType } from '../config/schema.ts';
@@ -12,6 +13,7 @@ import {
   hasUnpushedCommits,
   isGitRepo
 } from './git.ts';
+import { GIT_MARKER, MAX_SCAN_DEPTH } from './layout.ts';
 import type { ScannedRepo } from './scan.ts';
 
 const REMOTE_CONCURRENCY = 10;
@@ -171,20 +173,37 @@ export function remoteBlocker(
   return state === 'gone' ? 'remote no longer exists' : 'remote unreachable';
 }
 
-/** Check each candidate's remote, grouped by forge so GitHub can batch. */
+/**
+ * Check each candidate's remote, grouped by forge **type and host** so an
+ * adapter can batch.
+ *
+ * The host is half the key, not a detail: two configured forges of one type —
+ * gitlab.com beside a self-hosted instance — are two different servers, and a
+ * batch spanning both would ask one of them about the other's projects. Where
+ * the same path exists on each (a public mirror of an internal project), that
+ * answers `exists` for the wrong server, and `remoteBlocker` reads `exists` as
+ * "safe to delete".
+ */
 export async function classifyRemotes(
   candidates: RepoEvaluation[]
 ): Promise<Map<string, RemoteCheckResult>> {
-  const byType = new Map<ForgeType, RepoEvaluation[]>();
+  const groups = new Map<
+    string,
+    { type: ForgeType; items: RepoEvaluation[] }
+  >();
   for (const c of candidates) {
-    const list = byType.get(c.repo.forge.type);
-    if (list) list.push(c);
-    else byType.set(c.repo.forge.type, [c]);
+    const { type, host } = c.repo.forge;
+    // A NUL separator: neither a type nor a host can contain one, so two
+    // different pairs can never collide into one key.
+    const key = `${type}\0${host}`;
+    const group = groups.get(key);
+    if (group) group.items.push(c);
+    else groups.set(key, { type, items: [c] });
   }
 
   const results = new Map<string, RemoteCheckResult>();
   await Promise.all(
-    Array.from(byType, async ([type, items]) => {
+    Array.from(groups.values(), async ({ type, items }) => {
       const inputs: RemoteCheckInput[] = items.map((c) => ({
         forge: c.repo.forge,
         owner: c.owner,
@@ -238,43 +257,63 @@ export async function classifyRemotes(
   return results;
 }
 
-async function safeReaddir(path: string): Promise<string[] | null> {
+/**
+ * Collect the empty namespace directories at and below `path`, deepest first,
+ * and report whether `path` itself turned out to be one.
+ *
+ * A namespace is empty when it holds nothing, or holds only namespaces that
+ * are themselves empty — which is what makes this follow a nested layout
+ * rather than the single owner level it used to assume. The walk never enters
+ * a repo: a `.git` entry means the directory is a checkout, and a checkout is
+ * never a leftover however empty its subdirectories are.
+ */
+async function collectEmptyDirs(
+  path: string,
+  depth: number,
+  empties: string[]
+): Promise<boolean> {
+  if (depth > MAX_SCAN_DEPTH) return false;
+  let entries: Dirent[];
   try {
-    return await readdir(path);
+    entries = await readdir(path, { withFileTypes: true });
   } catch {
-    return null;
+    return false;
   }
+  if (entries.some((e) => e.name === GIT_MARKER)) return false;
+  if (entries.length === 0) {
+    empties.push(path);
+    return true;
+  }
+  // A file here is content, so the directory stays whatever its children are.
+  if (entries.some((e) => !e.isDirectory())) return false;
+
+  let allEmpty = true;
+  for (const entry of entries) {
+    const childEmpty = await collectEmptyDirs(
+      join(path, entry.name),
+      depth + 1,
+      empties
+    );
+    if (!childEmpty) allEmpty = false;
+  }
+  if (allEmpty) empties.push(path);
+  return allEmpty;
 }
 
-/** Empty owner directories (and a server directory that holds only such empty
- *  owners) under the configured forge dirs. Detection only — no removal. */
+/** Empty namespace directories (server dir included) under the configured
+ *  forge dirs, deepest first. Detection only — no removal. */
 export async function findEmptyDirs(
   root: string,
   config: ForgeMapConfig
 ): Promise<string[]> {
   const empties: string[] = [];
   for (const forge of Object.values(config.forges)) {
-    const serverPath = join(root, forge.dir);
-    const owners = await safeReaddir(serverPath);
-    if (owners === null) continue;
-    let emptyCount = 0;
-    for (const owner of owners) {
-      const ownerPath = join(serverPath, owner);
-      const inner = await safeReaddir(ownerPath);
-      if (inner !== null && inner.length === 0) {
-        empties.push(ownerPath);
-        emptyCount++;
-      }
-    }
-    // The server dir itself goes if it is empty or holds only empty owners.
-    if (owners.length === 0 || emptyCount === owners.length) {
-      empties.push(serverPath);
-    }
+    await collectEmptyDirs(join(root, forge.dir), 0, empties);
   }
   return empties;
 }
 
-/** Remove the dirs from findEmptyDirs (owners before server dirs). */
+/** Remove the dirs from findEmptyDirs (children before their parents). */
 export async function pruneEmptyDirs(
   root: string,
   config: ForgeMapConfig

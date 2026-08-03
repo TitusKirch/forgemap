@@ -20,6 +20,7 @@ import {
   discoverForgemapLayout,
   type RepoReport
 } from '../src/repos/import.ts';
+import { MAX_NAMESPACE_DEPTH } from '../src/repos/layout.ts';
 
 interface RepoState {
   isRepo: boolean;
@@ -117,6 +118,77 @@ describe('discoverForgemapLayout', () => {
     expect(
       found.map((r) => `${r.serverDir}/${r.owner}/${r.repo}`).sort()
     ).toEqual(['github.com/foo/bar', 'github.com/foo/baz']);
+  });
+
+  it('adopts a repo under a nested namespace', async () => {
+    await mkdir(join(dir, 'gitlab.acme.com', 'group', 'sub', 'api', '.git'), {
+      recursive: true
+    });
+
+    const found = await discoverForgemapLayout(dir);
+    expect(found).toEqual([
+      {
+        serverDir: 'gitlab.acme.com',
+        owner: 'group/sub',
+        repo: 'api',
+        localPath: join(dir, 'gitlab.acme.com', 'group', 'sub', 'api')
+      }
+    ]);
+  });
+
+  it('still surfaces a plain directory so it can be reported', async () => {
+    await mkdir(join(dir, 'github.com', 'foo', 'not-a-repo'), {
+      recursive: true
+    });
+
+    const found = await discoverForgemapLayout(dir);
+    expect(found.map((r) => `${r.owner}/${r.repo}`)).toEqual([
+      'foo/not-a-repo'
+    ]);
+  });
+
+  it('never descends into a repo', async () => {
+    await mkdir(join(dir, 'github.com', 'foo', 'bar', '.git'), {
+      recursive: true
+    });
+    await mkdir(
+      join(dir, 'github.com', 'foo', 'bar', 'vendor', 'sub', '.git'),
+      {
+        recursive: true
+      }
+    );
+
+    const found = await discoverForgemapLayout(dir);
+    expect(found.map((r) => `${r.owner}/${r.repo}`)).toEqual(['foo/bar']);
+  });
+
+  it('adopts a repo whose namespace sits exactly at the cap', async () => {
+    // `import` reads the same cap as the scanner, so what one accepts the
+    // other must too — a repo it refuses here is one `list` would show.
+    const namespace = Array.from(
+      { length: MAX_NAMESPACE_DEPTH },
+      (_, i) => `n${i}`
+    );
+    await mkdir(join(dir, 'gitlab.acme.com', ...namespace, 'api', '.git'), {
+      recursive: true
+    });
+
+    const found = await discoverForgemapLayout(dir);
+    expect(found.map((r) => `${r.owner}/${r.repo}`)).toEqual([
+      `${namespace.join('/')}/api`
+    ]);
+  });
+
+  it('stops one namespace segment past the cap', async () => {
+    const namespace = Array.from(
+      { length: MAX_NAMESPACE_DEPTH + 1 },
+      (_, i) => `n${i}`
+    );
+    await mkdir(join(dir, 'gitlab.acme.com', ...namespace, 'api', '.git'), {
+      recursive: true
+    });
+
+    expect(await discoverForgemapLayout(dir)).toEqual([]);
   });
 
   it('returns empty for a missing path', async () => {

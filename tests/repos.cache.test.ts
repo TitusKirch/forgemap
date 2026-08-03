@@ -21,6 +21,13 @@ function makeConfig(): ForgeMapConfig {
   };
 }
 
+/** Create a repo under the github forge dir, marked by a `.git` directory. */
+async function seedRepo(root: string, ...segments: string[]): Promise<string> {
+  const path = join(root, 'comGithub', ...segments);
+  await mkdir(join(path, '.git'), { recursive: true });
+  return path;
+}
+
 describe('scanReposCached', () => {
   let dir: string;
   let cacheHome: string;
@@ -55,7 +62,7 @@ describe('scanReposCached', () => {
 
   it('returns cached results when the layout has not changed', async () => {
     const config = makeConfig();
-    await mkdir(join(dir, 'comGithub', 'foo', 'bar'), { recursive: true });
+    await seedRepo(dir, 'foo', 'bar');
     const first = await scanReposCached({ config, configDir: dir });
     const second = await scanReposCached({ config, configDir: dir });
     expect(first).toEqual(second);
@@ -64,19 +71,19 @@ describe('scanReposCached', () => {
 
   it('serves the TTL fast path even when the layout changed', async () => {
     const config = makeConfig();
-    await mkdir(join(dir, 'comGithub', 'foo', 'bar'), { recursive: true });
+    await seedRepo(dir, 'foo', 'bar');
     const first = await scanReposCached({ config, configDir: dir });
     expect(first).toHaveLength(1);
 
     // Layout changes under us, but TTL is still hot → cache wins.
-    await mkdir(join(dir, 'comGithub', 'baz', 'qux'), { recursive: true });
+    await seedRepo(dir, 'baz', 'qux');
     const second = await scanReposCached({ config, configDir: dir });
     expect(second).toHaveLength(1);
   });
 
   it('invalidates when fingerprint check is forced (trustTtl=false)', async () => {
     const config = makeConfig();
-    await mkdir(join(dir, 'comGithub', 'foo', 'bar'), { recursive: true });
+    await seedRepo(dir, 'foo', 'bar');
     const first = await scanReposCached({
       config,
       configDir: dir,
@@ -84,7 +91,7 @@ describe('scanReposCached', () => {
     });
     expect(first).toHaveLength(1);
 
-    await mkdir(join(dir, 'comGithub', 'baz', 'qux'), { recursive: true });
+    await seedRepo(dir, 'baz', 'qux');
     const second = await scanReposCached({
       config,
       configDir: dir,
@@ -97,7 +104,7 @@ describe('scanReposCached', () => {
     process.env.FORGEMAP_CACHE_TTL_MS = '0';
     const config = makeConfig();
     const owner = join(dir, 'comGithub', 'foo');
-    await mkdir(join(owner, 'bar'), { recursive: true });
+    await seedRepo(dir, 'foo', 'bar');
     const first = await scanReposCached({ config, configDir: dir });
     expect(first).toHaveLength(1);
 
@@ -106,16 +113,66 @@ describe('scanReposCached', () => {
     // unmoved, which is how this went flaky on CI — the fingerprint has
     // to notice the new name regardless.
     const before = await stat(owner);
-    await mkdir(join(owner, 'baz'), { recursive: true });
+    await seedRepo(dir, 'foo', 'baz');
     await utimes(owner, before.atime, before.mtime);
 
     const second = await scanReposCached({ config, configDir: dir });
     expect(second.map((r) => r.slug).sort()).toEqual(['foo/bar', 'foo/baz']);
   });
 
+  it('invalidates when a repo appears under a nested namespace', async () => {
+    const config = makeConfig();
+    await seedRepo(dir, 'group', 'sub', 'api');
+    const first = await scanReposCached({
+      config,
+      configDir: dir,
+      trustTtl: false
+    });
+    expect(first.map((r) => r.slug)).toEqual(['group/sub/api']);
+
+    await seedRepo(dir, 'group', 'sub', 'deeper', 'web');
+    const second = await scanReposCached({
+      config,
+      configDir: dir,
+      trustTtl: false
+    });
+    expect(second.map((r) => r.slug).sort()).toEqual([
+      'group/sub/api',
+      'group/sub/deeper/web'
+    ]);
+  });
+
+  it('invalidates when a plain directory becomes a checkout', async () => {
+    const config = makeConfig();
+    // A namespace holding one repo and one ordinary directory beside it.
+    await seedRepo(dir, 'foo', 'bar');
+    const plain = join(dir, 'comGithub', 'foo', 'later');
+    await mkdir(plain, { recursive: true });
+
+    const first = await scanReposCached({
+      config,
+      configDir: dir,
+      trustTtl: false
+    });
+    expect(first.map((r) => r.slug)).toEqual(['foo/bar']);
+
+    // `git init` moves no directory name — only the marker appears. Pin the
+    // parent mtime back so the names/mtimes alone cannot notice the change.
+    const before = await stat(join(dir, 'comGithub', 'foo'));
+    await mkdir(join(plain, '.git'), { recursive: true });
+    await utimes(join(dir, 'comGithub', 'foo'), before.atime, before.mtime);
+
+    const second = await scanReposCached({
+      config,
+      configDir: dir,
+      trustTtl: false
+    });
+    expect(second.map((r) => r.slug).sort()).toEqual(['foo/bar', 'foo/later']);
+  });
+
   it('bypasses the cache when useCache=false', async () => {
     const config = makeConfig();
-    await mkdir(join(dir, 'comGithub', 'foo', 'bar'), { recursive: true });
+    await seedRepo(dir, 'foo', 'bar');
     await scanReposCached({ config, configDir: dir });
     const fresh = await scanReposCached({
       config,
@@ -163,11 +220,11 @@ describe('appendCachedRepo', () => {
 
   it('extends the cached list without forcing a rescan', async () => {
     const config = makeConfig();
-    await mkdir(join(dir, 'comGithub', 'foo', 'bar'), { recursive: true });
+    await seedRepo(dir, 'foo', 'bar');
     const initial = await scanReposCached({ config, configDir: dir });
     expect(initial).toHaveLength(1);
 
-    await mkdir(join(dir, 'comGithub', 'foo', 'baz'), { recursive: true });
+    await seedRepo(dir, 'foo', 'baz');
     await appendCachedRepo({ config, configDir: dir }, makeRepo('foo', 'baz'));
 
     // TTL is hot — the next read still hits cache but now sees both entries.
@@ -184,7 +241,7 @@ describe('appendCachedRepo', () => {
 
   it('skips duplicates', async () => {
     const config = makeConfig();
-    await mkdir(join(dir, 'comGithub', 'foo', 'bar'), { recursive: true });
+    await seedRepo(dir, 'foo', 'bar');
     await scanReposCached({ config, configDir: dir });
     const repo = makeRepo('foo', 'bar');
     await appendCachedRepo({ config, configDir: dir }, repo);
@@ -215,8 +272,8 @@ describe('removeCachedRepo', () => {
 
   it('drops the matching entry from the cache', async () => {
     const config = makeConfig();
-    await mkdir(join(dir, 'comGithub', 'foo', 'bar'), { recursive: true });
-    await mkdir(join(dir, 'comGithub', 'foo', 'baz'), { recursive: true });
+    await seedRepo(dir, 'foo', 'bar');
+    await seedRepo(dir, 'foo', 'baz');
     await scanReposCached({ config, configDir: dir });
 
     await removeCachedRepo(
@@ -230,7 +287,7 @@ describe('removeCachedRepo', () => {
 
   it('is a no-op for an unknown path', async () => {
     const config = makeConfig();
-    await mkdir(join(dir, 'comGithub', 'foo', 'bar'), { recursive: true });
+    await seedRepo(dir, 'foo', 'bar');
     await scanReposCached({ config, configDir: dir });
     await removeCachedRepo({ config, configDir: dir }, '/does/not/exist');
     const after = await scanReposCached({ config, configDir: dir });

@@ -1,10 +1,11 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import consola from 'consola';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { listCommand } from '../src/commands/list.ts';
 import { runCli } from './helpers/citty.ts';
+import { seedRepo } from './helpers/layout.ts';
 
 const FIXTURE_CONFIG = `export default {
   root: '.',
@@ -18,15 +19,9 @@ const FIXTURE_CONFIG = `export default {
 async function setup(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'forgemap-list-'));
   await writeFile(join(dir, 'forgemap.config.ts'), FIXTURE_CONFIG, 'utf8');
-  await mkdir(join(dir, 'comGithub', 'TitusKirch', 'forgemap'), {
-    recursive: true
-  });
-  await mkdir(join(dir, 'comGithub', 'kirchDev', 'forgemap-php'), {
-    recursive: true
-  });
-  await mkdir(join(dir, 'comGithub', 'kirchDev', 'laravel-pbac'), {
-    recursive: true
-  });
+  await seedRepo(dir, 'comGithub', 'TitusKirch', 'forgemap');
+  await seedRepo(dir, 'comGithub', 'kirchDev', 'forgemap-php');
+  await seedRepo(dir, 'comGithub', 'kirchDev', 'laravel-pbac');
   return dir;
 }
 
@@ -305,9 +300,7 @@ describe('listCommand', () => {
 
     it('falls back to the cwd when no config file is discovered', async () => {
       const bare = await mkdtemp(join(tmpdir(), 'forgemap-list-bare-'));
-      await mkdir(join(bare, 'comGithub', 'TitusKirch', 'forgemap'), {
-        recursive: true
-      });
+      await seedRepo(bare, 'comGithub', 'TitusKirch', 'forgemap');
       const saved = process.cwd();
       const savedXdg = process.env.XDG_CONFIG_HOME;
       process.env.XDG_CONFIG_HOME = join(bare, 'xdg-empty');

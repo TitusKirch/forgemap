@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -30,6 +30,15 @@ const CONFIG_GIT = `export default {
   defaultForge: 'work',
   forges: {
     work: { type: 'git', host: 'gitlab.acme.com', dir: 'comGitlabAcme' }
+  }
+};
+`;
+
+const CONFIG_GITLAB = `export default {
+  root: '.',
+  defaultForge: 'work',
+  forges: {
+    work: { type: 'gitlab', host: 'gitlab.acme.com', dir: 'comGitlabAcme' }
   }
 };
 `;
@@ -182,6 +191,74 @@ describe('validateCommand', () => {
     const { out, exit } = await runValidate(dir);
     expect(exit).toBe(1);
     expect(out).toMatch(/dir is empty/);
+  });
+
+  it('fails when glab is missing for a gitlab forge', async () => {
+    await writeFile(join(dir, 'forgemap.config.ts'), CONFIG_GITLAB, 'utf8');
+    hasCommandMock.mockImplementation(async (cmd: string) => cmd !== 'glab');
+
+    const { out, exit } = await runValidate(dir);
+    expect(exit).toBe(1);
+    expect(out).toContain('glab CLI');
+    expect(out).toContain('Validation failed');
+  });
+
+  it('checks glab auth against each gitlab forge host', async () => {
+    await writeFile(join(dir, 'forgemap.config.ts'), CONFIG_GITLAB, 'utf8');
+    hasCommandMock.mockResolvedValue(true);
+    execCaptureMock.mockResolvedValue({ code: 0, stdout: '', stderr: '' });
+
+    const { out, exit } = await runValidate(dir);
+    expect(exit).toBeUndefined();
+    expect(out).toContain('glab auth');
+    expect(execCaptureMock).toHaveBeenCalledWith('glab', [
+      'auth',
+      'status',
+      '--hostname',
+      'gitlab.acme.com'
+    ]);
+  });
+
+  it('warns (not fails) when glab is present but not logged in', async () => {
+    await writeFile(join(dir, 'forgemap.config.ts'), CONFIG_GITLAB, 'utf8');
+    hasCommandMock.mockResolvedValue(true);
+    execCaptureMock.mockResolvedValue({
+      code: 1,
+      stdout: '',
+      stderr: 'not authenticated'
+    });
+
+    const { out, exit } = await runValidate(dir);
+    expect(exit).toBeUndefined();
+    expect(out).toMatch(/glab auth.+glab auth login/);
+  });
+
+  it('hints at directories under a forge dir that hold no repo', async () => {
+    await writeFile(join(dir, 'forgemap.config.ts'), CONFIG_GITHUB, 'utf8');
+    await mkdir(join(dir, 'comGithub', 'foo', 'not-a-repo'), {
+      recursive: true
+    });
+    hasCommandMock.mockResolvedValue(true);
+    execCaptureMock.mockResolvedValue({ code: 0, stdout: '', stderr: '' });
+
+    const { out, exit } = await runValidate(dir);
+    // A hint, never a failure — the layout is odd, not broken.
+    expect(exit).toBeUndefined();
+    expect(out).toContain('layout');
+    expect(out).toContain('not-a-repo');
+  });
+
+  it('reports a clean layout as ok', async () => {
+    await writeFile(join(dir, 'forgemap.config.ts'), CONFIG_GITHUB, 'utf8');
+    await mkdir(join(dir, 'comGithub', 'foo', 'bar', '.git'), {
+      recursive: true
+    });
+    hasCommandMock.mockResolvedValue(true);
+    execCaptureMock.mockResolvedValue({ code: 0, stdout: '', stderr: '' });
+
+    const { out, exit } = await runValidate(dir);
+    expect(exit).toBeUndefined();
+    expect(out).toMatch(/layout.+1 repo/);
   });
 
   it('flags an unknown forge type', async () => {

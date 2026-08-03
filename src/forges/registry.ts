@@ -1,15 +1,17 @@
 import type { ForgeType } from '../config/schema.ts';
 import { gitAdapter } from './git.ts';
 import { githubAdapter } from './github.ts';
+import { gitlabAdapter } from './gitlab.ts';
 import type { ForgeAdapter } from './types.ts';
 
 export function getForgeAdapter(type: ForgeType): ForgeAdapter {
   switch (type) {
     case 'github':
       return githubAdapter;
+    case 'gitlab':
+      return gitlabAdapter;
     case 'git':
       return gitAdapter;
-    case 'gitlab':
     case 'gitea':
     case 'codeberg':
       throw new Error(

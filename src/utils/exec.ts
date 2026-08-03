@@ -4,12 +4,21 @@ export interface ExecResult {
   code: number;
 }
 
+export interface InheritOptions {
+  /** Extra env vars, merged over `process.env`. */
+  env?: NodeJS.ProcessEnv;
+}
+
 export function execInherit(
   command: string,
-  args: string[]
+  args: string[],
+  options: InheritOptions = {}
 ): Promise<ExecResult> {
   return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(command, args, { stdio: 'inherit' });
+    const child = spawn(command, args, {
+      env: options.env ? { ...process.env, ...options.env } : undefined,
+      stdio: 'inherit'
+    });
     child.on('error', rejectPromise);
     child.on('close', (code) => {
       resolvePromise({ code: code ?? 0 });

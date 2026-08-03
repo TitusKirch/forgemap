@@ -49,6 +49,53 @@ describe('parseSlug', () => {
     });
   });
 
+  it('parses a nested namespace in the short form', () => {
+    expect(parseSlug('group/sub/api')).toEqual({
+      owner: 'group/sub',
+      repo: 'api'
+    });
+  });
+
+  it('parses a nested namespace in the named form', () => {
+    expect(parseSlug('work:group/sub/deeper/api')).toEqual({
+      forgeName: 'work',
+      owner: 'group/sub/deeper',
+      repo: 'api'
+    });
+  });
+
+  it('parses a nested namespace in a URL', () => {
+    expect(parseSlug('https://gitlab.com/group/sub/repo')).toEqual({
+      host: 'gitlab.com',
+      owner: 'group/sub',
+      repo: 'repo'
+    });
+  });
+
+  it('parses a nested namespace over SSH', () => {
+    expect(parseSlug('git@gitlab.com:group/sub/repo.git')).toEqual({
+      host: 'gitlab.com',
+      owner: 'group/sub',
+      repo: 'repo'
+    });
+  });
+
+  it('truncates a URL at GitLab’s /-/ separator', () => {
+    expect(
+      parseSlug('https://gitlab.com/group/sub/repo/-/merge_requests/1')
+    ).toEqual({
+      host: 'gitlab.com',
+      owner: 'group/sub',
+      repo: 'repo'
+    });
+  });
+
+  it('rejects a URL whose path is only the /-/ separator', () => {
+    expect(() => parseSlug('https://gitlab.com/group/-/foo')).toThrow(
+      /must contain a namespace and repo/
+    );
+  });
+
   it('rejects empty input', () => {
     expect(() => parseSlug('')).toThrow(/empty/);
   });
@@ -57,9 +104,9 @@ describe('parseSlug', () => {
     expect(() => parseSlug('not a slug')).toThrow(/Unrecognized/);
   });
 
-  it('rejects URLs without owner/repo path', () => {
+  it('rejects URLs without a namespace/repo path', () => {
     expect(() => parseSlug('https://github.com/foo')).toThrow(
-      /must contain owner and repo/
+      /must contain a namespace and repo/
     );
   });
 

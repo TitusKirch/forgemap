@@ -1,11 +1,13 @@
 import { join } from 'pathe';
 import type { ForgeConfig, ForgeMapConfig } from '../config/schema.ts';
+import { checkNamespaceDepth } from '../repos/layout.ts';
 import { resolveRoot } from '../utils/path.ts';
 import type { ParsedSlug } from './parse.ts';
 
 export interface ResolvedSlug {
   forgeName: string;
   forge: ForgeConfig;
+  /** Namespace path — one segment on a flat forge, several where they nest. */
   owner: string;
   repo: string;
   localPath: string;
@@ -64,6 +66,13 @@ export function resolveSlug(
     }
     forgeName = config.defaultForge;
     forge = candidate;
+  }
+
+  // Depth is a property of the forge, so it can only be checked once the slug
+  // has been bound to one — which is here, not in the parser.
+  const depthError = checkNamespaceDepth(forgeName, forge.type, parsed.owner);
+  if (depthError) {
+    throw new Error(depthError);
   }
 
   const root = resolveRoot(config.root, configDir);

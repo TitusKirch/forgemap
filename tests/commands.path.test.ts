@@ -1,9 +1,10 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { pathCommand } from '../src/commands/path.ts';
 import { runCli } from './helpers/citty.ts';
+import { seedRepo } from './helpers/layout.ts';
 
 const FIXTURE_CONFIG = `export default {
   root: '.',
@@ -26,7 +27,7 @@ async function setup(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'forgemap-path-test-'));
   await writeFile(join(dir, 'forgemap.config.ts'), FIXTURE_CONFIG, 'utf8');
   for (const [forgeDir, owner, repo] of CLONED) {
-    await mkdir(join(dir, forgeDir, owner, repo), { recursive: true });
+    await seedRepo(dir, forgeDir, owner, repo);
   }
   return dir;
 }
@@ -111,9 +112,7 @@ describe('pathCommand', () => {
   });
   it('falls back to the cwd when no config file is discovered', async () => {
     const bare = await mkdtemp(join(tmpdir(), 'forgemap-path-bare-'));
-    await mkdir(join(bare, 'comGithub', 'kirchDev', 'gildmaster'), {
-      recursive: true
-    });
+    await seedRepo(bare, 'comGithub', 'kirchDev', 'gildmaster');
     const saved = process.cwd();
     const savedXdg = process.env.XDG_CONFIG_HOME;
     process.env.XDG_CONFIG_HOME = join(bare, 'xdg-empty');

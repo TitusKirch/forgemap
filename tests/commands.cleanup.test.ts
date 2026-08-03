@@ -19,6 +19,7 @@ vi.mock('../src/utils/exec.ts', () => ({
 import { cleanupCommand } from '../src/commands/cleanup.ts';
 import { __test } from '../src/repos/cache.ts';
 import { runCli } from './helpers/citty.ts';
+import { markRepo } from './helpers/layout.ts';
 
 const DAY = 86_400;
 
@@ -166,8 +167,7 @@ describe('cleanupCommand', () => {
   });
 
   async function makeRepo(owner: string, repo: string, state: RepoState) {
-    const local = join(dir, 'comGithub', owner, repo);
-    await mkdir(local, { recursive: true });
+    const local = await markRepo(join(dir, 'comGithub', owner, repo));
     repos[local] = state;
     if (state.origin) {
       remoteExists[`${owner}/${repo}`] = true; // default: exists
@@ -177,8 +177,7 @@ describe('cleanupCommand', () => {
 
   // A repo under the `work` (type: 'git') forge — remote checked via ls-remote.
   async function makeGitRepo(owner: string, repo: string, state: RepoState) {
-    const local = join(dir, 'comGit', owner, repo);
-    await mkdir(local, { recursive: true });
+    const local = await markRepo(join(dir, 'comGit', owner, repo));
     repos[local] = state;
     return local;
   }

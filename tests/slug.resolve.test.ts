@@ -52,6 +52,29 @@ describe('resolveSlug', () => {
     ).toThrow(/No forge configured/);
   });
 
+  it('resolves a nested namespace on a gitlab forge', () => {
+    const r = resolveSlug(parseSlug('work:group/sub/api'), {
+      config,
+      configDir: '/cfg'
+    });
+    expect(r.owner).toBe('group/sub');
+    expect(r.repo).toBe('api');
+    expect(r.localPath).toBe('/tmp/projects/comGitlabAcme/group/sub/api');
+  });
+
+  it('rejects a nested namespace on a forge that does not nest', () => {
+    expect(() =>
+      resolveSlug(parseSlug('foo/bar/baz'), { config, configDir: '/cfg' })
+    ).toThrow(/github.*does not support nested namespaces/);
+  });
+
+  it('rejects a namespace deeper than the layout cap', () => {
+    const deep = Array.from({ length: 12 }, (_, i) => `n${i}`).join('/');
+    expect(() =>
+      resolveSlug(parseSlug(`work:${deep}/api`), { config, configDir: '/cfg' })
+    ).toThrow(/at most/);
+  });
+
   it('resolves relative root against configDir', () => {
     const local: ForgeMapConfig = { ...config, root: './nested' };
     const r = resolveSlug(parseSlug('foo/bar'), {

@@ -8,8 +8,15 @@ describe('getForgeAdapter', () => {
     expect(typeof adapter.clone).toBe('function');
   });
 
-  it('throws "not implemented yet" for gitlab', () => {
-    expect(() => getForgeAdapter('gitlab')).toThrow(/not implemented yet/);
+  it('returns the gitlab adapter for type "gitlab"', () => {
+    const adapter = getForgeAdapter('gitlab');
+    expect(adapter).toBeDefined();
+    expect(typeof adapter.clone).toBe('function');
+    expect(typeof adapter.checkRemotes).toBe('function');
+  });
+
+  it('returns the git adapter for type "git"', () => {
+    expect(typeof getForgeAdapter('git').clone).toBe('function');
   });
 
   it('throws "not implemented yet" for gitea', () => {

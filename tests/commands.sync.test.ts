@@ -19,6 +19,7 @@ vi.mock('../src/repos/git.ts', () => ({
 
 import { syncCommand } from '../src/commands/sync.ts';
 import { __test } from '../src/repos/cache.ts';
+import { seedRepo } from './helpers/layout.ts';
 
 const FIXTURE_CONFIG = `export default {
   root: '.',
@@ -33,9 +34,9 @@ const FIXTURE_CONFIG = `export default {
 async function setup(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'forgemap-sync-'));
   await writeFile(join(dir, 'forgemap.config.ts'), FIXTURE_CONFIG, 'utf8');
-  await mkdir(join(dir, 'comGithub', 'foo', 'a'), { recursive: true });
-  await mkdir(join(dir, 'comGithub', 'foo', 'b'), { recursive: true });
-  await mkdir(join(dir, 'comGitlabAcme', 'team', 'api'), { recursive: true });
+  await seedRepo(dir, 'comGithub', 'foo', 'a');
+  await seedRepo(dir, 'comGithub', 'foo', 'b');
+  await seedRepo(dir, 'comGitlabAcme', 'team', 'api');
   return dir;
 }
 

@@ -16,7 +16,12 @@ Retyping a change is exactly how the two drift; one reflowed line or reworded cl
 
 ## What this is
 
-`forgemap` is a Node 24 / pnpm 11 CLI (built on [citty](https://github.com/unjs/citty)) that manages a local repo layout of the form `<root>/<forge.dir>/<owner>/<repo>`.
+`forgemap` is a Node 24 / pnpm 11 CLI (built on [citty](https://github.com/unjs/citty)) that manages a local repo layout of the form `<root>/<forge.dir>/<namespace…>/<repo>`.
+
+The namespace is **variable-depth** — one segment on GitHub, as many as GitLab subgroups need. `src/repos/layout.ts` is the single place that bounds it (`MAX_SCAN_DEPTH`, the `.git` marker, and the per-forge-type depth limit); `src/repos/scan.ts`, `src/repos/cache.ts`, `src/repos/evaluate.ts` and `src/slug/resolve.ts` all read it rather than re-encoding a depth of their own.
+
+- **A directory holding a `.git` entry is a repo** — file or directory alike, since worktrees and submodules use a `.git` file. The scan walks to the first marker and never descends into a repo, so a plain directory under a forge dir is _not_ a repo and drops out of `list` / `status` / `pick`; `validate` reports it as a hint.
+- **`parseSlug` stays pure.** The last segment is the repo, everything before it the namespace; depth is checked against the forge type in `resolveSlug`, where the two are bound — `github` still rejects `a/b/c`.
 
 Commands are registered in `src/cli.ts` — treat that file as the list, not this one:
 
@@ -30,8 +35,9 @@ Commands are registered in `src/cli.ts` — treat that file as the list, not thi
 Forge support is per-`type`, dispatched by `src/forges/registry.ts`:
 
 - `github` — shells out to `gh` (clone + a batched GraphQL remote-identity check).
-- `git` — vanilla `git clone`, ssh by default (`protocol: 'https'` to override).
-- `gitlab` / `gitea` / `codeberg` — declared in `ForgeType`, **not implemented** — `getForgeAdapter` throws and points at `type: 'git'` as the fallback.
+- `gitlab` — shells out to `glab`, same shape: batched aliased GraphQL plus one REST call per miss to tell `moved` from `gone`. `glab` is **required**, never optional — a silent fallback to plain git would make clone behaviour depend on `PATH`. Every invocation sets `GITLAB_HOST=<forge.host>` so nothing depends on the user's global `glab config set host`.
+- `git` — vanilla `git clone`, ssh by default (`protocol: 'https'` to override). Namespaces may nest here too: it is the documented alternative for a GitLab-shaped remote without a second CLI.
+- `gitea` / `codeberg` — declared in `ForgeType`, **not implemented** — `getForgeAdapter` throws and points at `type: 'git'` as the fallback.
 
 Config is loaded by [c12](https://github.com/unjs/c12) from `forgemap.config.{ts,mts,cts,js,mjs,cjs,json}` — resolution order: `--config` flag → `FORGEMAP_CONFIG` env → walk up from cwd → global `$XDG_CONFIG_HOME/forgemap` (or `~/.config/forgemap`). Shape is `{ root, defaultForge, forges: Record<string, { type, host, dir }> }` (`src/config/schema.ts`).
 

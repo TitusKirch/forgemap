@@ -1,9 +1,10 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import consola from 'consola';
 import { pickCommand } from '../src/commands/pick.ts';
+import { markRepo, seedRepo } from './helpers/layout.ts';
 
 const FIXTURE_CONFIG = `export default {
   root: '.',
@@ -62,31 +63,31 @@ describe('pickCommand', () => {
   });
 
   it('exits 1 when the query matches nothing', async () => {
-    await mkdir(join(dir, 'comGithub', 'foo', 'bar'), { recursive: true });
+    await seedRepo(dir, 'comGithub', 'foo', 'bar');
     const { out, exit } = await runPick(dir, { query: 'nope' });
     expect(out).toBe('');
     expect(exit).toBe(1);
   });
 
   it('short-circuits without prompting when exactly one match', async () => {
-    await mkdir(join(dir, 'comGithub', 'foo', 'bar'), { recursive: true });
+    await seedRepo(dir, 'comGithub', 'foo', 'bar');
     const { out, exit } = await runPick(dir, { query: 'bar' });
     expect(out).toBe(join(dir, 'comGithub', 'foo', 'bar'));
     expect(exit).toBeUndefined();
   });
 
   it('refuses to prompt when stdin is not a TTY', async () => {
-    await mkdir(join(dir, 'comGithub', 'foo', 'a'), { recursive: true });
-    await mkdir(join(dir, 'comGithub', 'foo', 'b'), { recursive: true });
+    await seedRepo(dir, 'comGithub', 'foo', 'a');
+    await seedRepo(dir, 'comGithub', 'foo', 'b');
     const { out, exit } = await runPick(dir, { query: 'foo' });
     expect(out).toBe('');
     expect(exit).toBe(1);
   });
 
   it('prints only the chosen path from the interactive picker', async () => {
-    await mkdir(join(dir, 'comGithub', 'foo', 'a'), { recursive: true });
+    await seedRepo(dir, 'comGithub', 'foo', 'a');
     const chosen = join(dir, 'comGithub', 'foo', 'b');
-    await mkdir(chosen, { recursive: true });
+    await markRepo(chosen);
 
     // Pretend we're interactive and let the prompt resolve to a choice.
     const ttyDesc = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
@@ -107,8 +108,8 @@ describe('pickCommand', () => {
     }
   });
   it('prints nothing when the picker is cancelled', async () => {
-    await mkdir(join(dir, 'comGithub', 'foo', 'a'), { recursive: true });
-    await mkdir(join(dir, 'comGithub', 'foo', 'b'), { recursive: true });
+    await seedRepo(dir, 'comGithub', 'foo', 'a');
+    await seedRepo(dir, 'comGithub', 'foo', 'b');
 
     const ttyDesc = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
     Object.defineProperty(process.stdin, 'isTTY', {
