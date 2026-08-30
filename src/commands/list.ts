@@ -39,6 +39,12 @@ function renderTree(repos: ScannedRepo[]): string {
 export const listCommand = defineCommand({
   meta: {
     name: 'list',
+    // `ls` is the short form every shell user already has muscle memory for,
+    // so it is carried by citty's own subcommand alias (TitusKirch/forgemap#95)
+    // rather than a second registry entry: citty resolves it on dispatch and
+    // renders it inside the existing help row as `list, ls`. `list` stays the
+    // canonical name.
+    alias: 'ls',
     description:
       'List cloned repos; with a query, fuzzy-match by owner/repo and print matches'
   },
