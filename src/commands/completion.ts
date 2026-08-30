@@ -49,6 +49,9 @@ type AnyCommand = CommandDef<any>;
 
 interface CommandSpec {
   name: string;
+  /** Alias names citty resolves to this command (`ls` → `list`). Recognised
+   *  everywhere the literal name is, but never *suggested* at depth 1. */
+  aliases: string[];
   /** Flag names (`--foo`, plus `--no-foo` for negatable booleans). */
   flags: string[];
   /** Static value sets for flags that take a fixed enum (e.g. `--format`). */
@@ -63,6 +66,23 @@ interface CommandSpec {
  *  it, like `config`), never a thunk — so no `Resolvable` unwrapping is needed. */
 function argsOf(cmd: AnyCommand): ArgsDef {
   return (cmd.args ?? {}) as ArgsDef;
+}
+
+/** Subcommand aliases, read off citty's own `meta.alias` so the completion and
+ *  the dispatcher cannot disagree about what `ls` means. Every forgemap command
+ *  declares `meta` as a plain object literal, never a thunk. */
+function aliasesOf(cmd: AnyCommand): string[] {
+  const alias = (cmd.meta as { alias?: string | string[] } | undefined)?.alias;
+  if (!alias) return [];
+  return Array.isArray(alias) ? [...alias] : [alias];
+}
+
+/** Every name that reaches a command on the command line: its own, plus its
+ *  aliases. This is what the *recognition* arms key on — `commandSpecs()`'s
+ *  `name` alone is what the depth-1 *suggestion* list offers, which is how an
+ *  alias completes its arguments without being advertised as a command. */
+function namesOf(spec: CommandSpec): string[] {
+  return [spec.name, ...spec.aliases];
 }
 
 /** Flag names a command exposes, derived from its `defineCommand` args so a new
@@ -107,6 +127,7 @@ function commandSpecs(): CommandSpec[] {
   ];
   return registry.map(([name, cmd]) => ({
     name,
+    aliases: aliasesOf(cmd),
     flags: flagsOf(cmd),
     flagValues: STATIC_FLAG_VALUES[name] ?? {},
     positionalValues: SHELL_POSITIONAL.has(name) ? [...SUPPORTED] : [],
@@ -118,8 +139,10 @@ function flagValuePairs(
   specs: CommandSpec[]
 ): Array<[string, string, string[]]> {
   return specs.flatMap((s) =>
-    Object.entries(s.flagValues).map(
-      ([flag, values]) => [s.name, flag, values] as [string, string, string[]]
+    namesOf(s).flatMap((name) =>
+      Object.entries(s.flagValues).map(
+        ([flag, values]) => [name, flag, values] as [string, string, string[]]
+      )
     )
   );
 }
@@ -136,10 +159,12 @@ function renderBash(specs: CommandSpec[]): string {
 
   const flagArms = specs
     .filter((s) => s.flags.length > 0)
-    .map((s) => `    ${s.name}) flags="${s.flags.join(' ')}" ;;`)
+    .flatMap((s) =>
+      namesOf(s).map((name) => `    ${name}) flags="${s.flags.join(' ')}" ;;`)
+    )
     .join('\n');
 
-  const slugCmds = specs.filter((s) => s.slugs).map((s) => s.name);
+  const slugCmds = specs.filter((s) => s.slugs).flatMap(namesOf);
   const positionalArms = [
     slugCmds.length > 0
       ? `    ${slugCmds.join('|')})
@@ -152,7 +177,7 @@ function renderBash(specs: CommandSpec[]): string {
       .filter((s) => s.positionalValues.length > 0)
       .map(
         (s) =>
-          `    ${s.name}) COMPREPLY=( $(compgen -W "${s.positionalValues.join(' ')}" -- "$cur") ) ;;`
+          `    ${namesOf(s).join('|')}) COMPREPLY=( $(compgen -W "${s.positionalValues.join(' ')}" -- "$cur") ) ;;`
       )
   ]
     .filter(Boolean)
@@ -207,16 +232,23 @@ function renderZsh(specs: CommandSpec[]): string {
 
   const flagArms = specs
     .filter((s) => s.flags.length > 0)
-    .map((s) => `    ${s.name}) compadd -- ${s.flags.join(' ')}; return ;;`)
+    .flatMap((s) =>
+      namesOf(s).map(
+        (name) => `    ${name}) compadd -- ${s.flags.join(' ')}; return ;;`
+      )
+    )
     .join('\n');
 
   const slugCmds = specs
     .filter((s) => s.slugs)
-    .map((s) => s.name)
+    .flatMap(namesOf)
     .join('|');
   const shellArms = specs
     .filter((s) => s.positionalValues.length > 0)
-    .map((s) => `    ${s.name}) compadd ${s.positionalValues.join(' ')} ;;`)
+    .map(
+      (s) =>
+        `    ${namesOf(s).join('|')}) compadd ${s.positionalValues.join(' ')} ;;`
+    )
     .join('\n');
 
   return `# forgemap zsh completion — drop into your ~/.zshrc:
@@ -269,19 +301,23 @@ function renderFish(specs: CommandSpec[]): string {
         const long = flag.replace(/^--/, '');
         const values = s.flagValues[flag];
         const valuePart = values ? ` -x -a '${values.join(' ')}'` : '';
-        return `complete -c forgemap -n '__fish_seen_subcommand_from ${s.name}' -l ${long}${valuePart}`;
+        return `complete -c forgemap -n '__fish_seen_subcommand_from ${namesOf(s).join(' ')}' -l ${long}${valuePart}`;
       })
     )
     .join('\n');
 
   const shellCmds = specs.filter((s) => s.positionalValues.length > 0);
-  const shellCmdsList = shellCmds.map((s) => `"${s.name}"`).join(' ');
+  const shellCmdsList = shellCmds
+    .flatMap(namesOf)
+    .map((name) => `"${name}"`)
+    .join(' ');
   // Both shell-positional commands share the supported-shells value set.
   const shellValues = shellCmds[0]?.positionalValues.join(' ') ?? '';
 
   const slugCmdsList = specs
     .filter((s) => s.slugs)
-    .map((s) => `"${s.name}"`)
+    .flatMap(namesOf)
+    .map((name) => `"${name}"`)
     .join(' ');
 
   return `# forgemap fish completion — drop into your ~/.config/fish/config.fish:

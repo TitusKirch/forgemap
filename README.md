@@ -88,6 +88,7 @@ Prints where a repo lives — or *would* live, if it isn't cloned yet, which mak
 forgemap list                       # every repo as a pretty tree
 forgemap list forgemap              # pretty tree (one line per match)
 forgemap list forgemap | fzf        # pipe-friendly path output
+forgemap ls                         # `ls` is an alias for `list`
 forgemap pick                       # interactive picker (consola prompt)
 forgemap pick kirch                 # picker pre-filtered by fuzzy query
 ```

@@ -132,13 +132,57 @@ describe('completionCommand', () => {
         "complete -c forgemap -n '__fish_seen_subcommand_from clone' -l ssh"
       );
       expect(out).toContain(
-        "complete -c forgemap -n '__fish_seen_subcommand_from list' -l format -x -a 'auto pretty path slug'"
+        "complete -c forgemap -n '__fish_seen_subcommand_from list ls' -l format -x -a 'auto pretty path slug'"
       );
       expect(out).toContain(
         "complete -c forgemap -n '__fish_seen_subcommand_from status' -l no-cache"
       );
       expect(out).toContain('__forgemap_needs_shell');
       expect(out).toContain("-n '__forgemap_needs_shell' -a 'zsh bash fish'");
+    });
+  });
+
+  // TitusKirch/forgemap#95: an alias (`ls` → `list`) is recognised everywhere
+  // the literal name is, but never offered at `forgemap <TAB>` — the
+  // suggestion list stays one entry per command, matching `--help`.
+  describe('command aliases', () => {
+    it('bash recognises the alias without suggesting it', async () => {
+      const out = await runCompletion({ shell: 'bash' });
+
+      expect(out).toContain('list) flags="--format --filter --limit --config"');
+      expect(out).toContain('ls) flags="--format --filter --limit --config"');
+      expect(out).toContain(
+        'ls:--format) COMPREPLY=( $(compgen -W "auto pretty path slug"'
+      );
+      expect(out).toMatch(/compgen -W "clone import[^"]*\blist\b/);
+      expect(out).not.toMatch(/compgen -W "clone import[^"]*\bls\b/);
+    });
+
+    it('bash completes slugs after the alias', async () => {
+      const out = await runCompletion({ shell: 'bash' });
+
+      expect(out).toContain('clone|delete|cd|path|open|list|ls|pick)');
+    });
+
+    it('zsh recognises the alias without suggesting it', async () => {
+      const out = await runCompletion({ shell: 'zsh' });
+
+      expect(out).toContain('ls) compadd -- --format');
+      expect(out).toContain('ls:--format) compadd auto pretty path slug;');
+      expect(out).toContain('clone|delete|cd|path|open|list|ls|pick)');
+      expect(out).not.toContain("'ls'");
+    });
+
+    it('fish recognises the alias without suggesting it', async () => {
+      const out = await runCompletion({ shell: 'fish' });
+
+      expect(out).toContain(
+        "complete -c forgemap -n '__fish_seen_subcommand_from list ls' -l format -x -a 'auto pretty path slug'"
+      );
+      expect(out).toContain(
+        'set -l slug_cmds "clone" "delete" "cd" "path" "open" "list" "ls" "pick"'
+      );
+      expect(out).not.toMatch(/__fish_use_subcommand' -a '[^']*\bls\b/);
     });
   });
 
