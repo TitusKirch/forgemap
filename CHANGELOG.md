@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.0](https://github.com/TitusKirch/forgemap/compare/v0.8.0...v0.9.0) (2026-08-30)
+
+
+### Features
+
+* **list:** support `ls` as an alias for `list` ([f846bfa](https://github.com/TitusKirch/forgemap/commit/f846bfac05e894dfa25dfafc27fc3535a988c3d8)), closes [#95](https://github.com/TitusKirch/forgemap/issues/95)
+
+
+### Bug Fixes
+
+* **ci:** let the queue PR body wrap itself ([e6bed71](https://github.com/TitusKirch/forgemap/commit/e6bed71f4c444d5038761c9242180939c3ac4a60))
+* **ci:** read the Queue App PEM from this owner's own -ci mirror ([7c7ee30](https://github.com/TitusKirch/forgemap/commit/7c7ee3001d6b4ab631f31776b563cade3d933196))
+* **ci:** restore the checkout and setup-node v7 refs ([4eb3d13](https://github.com/TitusKirch/forgemap/commit/4eb3d138e53881171c1d96ac427d0c0a719573f8))
+* **deps:** bump the npm-minor-patch group across 1 directory with 8 updates ([#93](https://github.com/TitusKirch/forgemap/issues/93)) ([c6860f2](https://github.com/TitusKirch/forgemap/commit/c6860f2f1e90c8c55eecc1a9bfb630865fbcef42))
+* **deps:** update dependencies and the pinned pnpm version ([58a74d0](https://github.com/TitusKirch/forgemap/commit/58a74d012bd0c2621b32b99d8ced81ed62317008))
+
 ## [0.8.0](https://github.com/TitusKirch/forgemap/compare/v0.7.0...v0.8.0) (2026-08-03)
 
 
