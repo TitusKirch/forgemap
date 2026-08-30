@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.8.0](https://github.com/TitusKirch/forgemap/compare/v0.7.0...v0.8.0) (2026-08-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* a directory under a forge dir that holds no git repo used to be listed as one and no longer is, so it drops out of `list`, `status`, `sync` and `pick`. `forgemap validate` names those directories.
+* a URL carrying more path than the project — a GitHub deep link such as `https://github.com/owner/repo/pull/1` — is now an error naming the forge's namespace depth rather than being silently truncated to `owner/repo`.
+
+### Features
+
+* accept nested namespaces in every slug form ([f180c97](https://github.com/TitusKirch/forgemap/commit/f180c97c002b69e1f189c29e45ad276ce6d72bd9)), closes [#86](https://github.com/TitusKirch/forgemap/issues/86)
+* adopt nested namespaces in import ([66f2396](https://github.com/TitusKirch/forgemap/commit/66f2396f8561838bb964c790358a7a953ba78bbe)), closes [#86](https://github.com/TitusKirch/forgemap/issues/86)
+* check glab and the layout in validate ([6df43c9](https://github.com/TitusKirch/forgemap/commit/6df43c96ea5ce54ac3ddb021ec0a1edc62fdf231)), closes [#86](https://github.com/TitusKirch/forgemap/issues/86)
+* find repos by their .git marker at any namespace depth ([94bfb3a](https://github.com/TitusKirch/forgemap/commit/94bfb3a3ce25eb648cf60aa948fd04e510169dd4)), closes [#86](https://github.com/TitusKirch/forgemap/issues/86)
+* prune the whole namespace a delete leaves empty ([c3bd663](https://github.com/TitusKirch/forgemap/commit/c3bd66328ceb79ea6f61c37d0b62d598ba53a642)), closes [#86](https://github.com/TitusKirch/forgemap/issues/86)
+* support GitLab natively via glab ([2cfa152](https://github.com/TitusKirch/forgemap/commit/2cfa15284b2f626a307bff6ad245c69056a04d1a)), closes [#86](https://github.com/TitusKirch/forgemap/issues/86)
+
+
+### Bug Fixes
+
+* ask each GitLab host only about its own projects ([ba83f2c](https://github.com/TitusKirch/forgemap/commit/ba83f2c663059326cbb2bb7ee4e6c427aca737ba)), closes [#86](https://github.com/TitusKirch/forgemap/issues/86)
+* scan the repo a namespace at the cap puts one level down ([feeaa66](https://github.com/TitusKirch/forgemap/commit/feeaa66d7e2c39f6d42b71edb19dfe6cfa217c47)), closes [#86](https://github.com/TitusKirch/forgemap/issues/86)
+
 ## [0.7.0](https://github.com/TitusKirch/forgemap/compare/v0.6.0...v0.7.0) (2026-07-26)
 
 
