@@ -53,18 +53,7 @@ ${name}() {
     if [ "$#" -eq 0 ]; then
       target=$(command forgemap pick) || return $?
     else
-      local matches
-      matches=$(command forgemap list "$1" --format path)
-      local count
-      count=$(printf '%s' "$matches" | grep -c '^/' || true)
-      if [ "$count" = "1" ]; then
-        target="$matches"
-      elif [ "$count" = "0" ]; then
-        echo "forgemap cd: no match for $1" >&2
-        return 1
-      else
-        target=$(command forgemap pick "$1") || return $?
-      fi
+      target=$(command forgemap path "$1") || return $?
     fi
     [ -n "$target" ] && builtin cd "$target"
     return
@@ -85,16 +74,7 @@ function ${name} --description "forgemap with cd interception"
     if test (count $argv) -eq 0
       set target (command forgemap pick); or return $status
     else
-      set matches (command forgemap list $argv[1] --format path)
-      set count (count $matches)
-      if test $count -eq 1
-        set target $matches[1]
-      else if test $count -eq 0
-        echo "forgemap cd: no match for $argv[1]" >&2
-        return 1
-      else
-        set target (command forgemap pick $argv[1]); or return $status
-      end
+      set target (command forgemap path $argv[1]); or return $status
     end
     test -n "$target"; and builtin cd $target
     return
