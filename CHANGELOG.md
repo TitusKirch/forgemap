@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.10.0](https://github.com/TitusKirch/forgemap/compare/v0.9.0...v0.10.0) (2026-09-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* move to pnpm 12
+* this repository now requires pnpm 12.
+
+### Features
+
+* **ci:** call the central workflow bodies instead of copying them ([2acbd01](https://github.com/TitusKirch/forgemap/commit/2acbd010b698d462046c61de6e5be4957039883b))
+
+
+### Bug Fixes
+
+* **ci:** bump the bodies to v0.1.2 ([581cc9a](https://github.com/TitusKirch/forgemap/commit/581cc9abb920e083f56676d24615642ad2c22d0b))
+* **ci:** bump the workflow bodies to v0.1.3 ([49fdc7e](https://github.com/TitusKirch/forgemap/commit/49fdc7ebdf5c9d5b5f49f32d9ff4f37602e6583f))
+* **ci:** pin the workflow bodies to v0.2.0 and drop paths-ignore ([e35f8f3](https://github.com/TitusKirch/forgemap/commit/e35f8f3f8dd131ba9141cbed852f9423e2dc0cb4))
+* **ci:** pin the workflow bodies to v0.5.0 ([03f6dca](https://github.com/TitusKirch/forgemap/commit/03f6dca2ef462b675c102cdf197f68ac73106430))
+* **ci:** pin the workflow bodies to v0.7.0 ([d12dfd2](https://github.com/TitusKirch/forgemap/commit/d12dfd2b4bf144f690c19a2be3fba8e35f22f582))
+* **ci:** publish prereleases only from main ([5e171a7](https://github.com/TitusKirch/forgemap/commit/5e171a748c3e56f3ea31489b8c7984ce4ebca767))
+* **config:** correct the codex policy match examples ([8c84c32](https://github.com/TitusKirch/forgemap/commit/8c84c3257b95ee4847545b34bc8f5597a8ab36a1))
+* list dot-prefixed repositories ([e9502f7](https://github.com/TitusKirch/forgemap/commit/e9502f7650b10cf45f4a699e3d3de6a57d76b64b)), closes [#107](https://github.com/TitusKirch/forgemap/issues/107)
+* resolve exact cd slugs before fuzzy matching ([19086eb](https://github.com/TitusKirch/forgemap/commit/19086eb4003fb2bc83dece1513ebab6d75c41822)), closes [#108](https://github.com/TitusKirch/forgemap/issues/108)
+
+
+### Reverts
+
+* go back to pnpm 11.25.0 ([0f478b7](https://github.com/TitusKirch/forgemap/commit/0f478b77490d314a80b534628e459d4d7b93ddf2))
+
+
+### Miscellaneous Chores
+
+* move to pnpm 12 ([499605d](https://github.com/TitusKirch/forgemap/commit/499605df5b22bfd7a13f56a0cc239c51a5547623))
+* move to pnpm 12 ([5eeafbe](https://github.com/TitusKirch/forgemap/commit/5eeafbe69772aa2822465879470925d34b9798de))
+
 ## [0.9.0](https://github.com/TitusKirch/forgemap/compare/v0.8.0...v0.9.0) (2026-08-30)
 
 
