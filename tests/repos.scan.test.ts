@@ -127,15 +127,18 @@ describe('scanRepos', () => {
     expect(r).toEqual([]);
   });
 
-  it('ignores dotfile directories', async () => {
+  it('finds dot-prefixed repositories while ignoring plain dotfile directories', async () => {
     await mkdir(join(dir, 'comGithub', '.cache', 'something'), {
       recursive: true
     });
+    await repo('comGithub', 'kirchDev', '.github');
     await repo('comGithub', 'foo', 'real-repo');
 
     const r = await scanRepos({ config: makeConfig(), configDir: dir });
-    expect(r).toHaveLength(1);
-    expect(r[0]!.slug).toBe('foo/real-repo');
+    expect(r.map((x) => x.slug).sort()).toEqual([
+      'foo/real-repo',
+      'kirchDev/.github'
+    ]);
   });
 
   it('attaches the local absolute path', async () => {

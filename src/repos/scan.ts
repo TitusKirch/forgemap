@@ -50,7 +50,7 @@ const WALK_CONCURRENCY = 32;
 type FingerprintEntry = [string, string];
 
 interface DirEntries {
-  /** Child directories, dotfiles excluded — the only ones worth descending. */
+  /** Child directories, including dot-prefixed repository names. */
   dirs: string[];
   /** Whether a `.git` entry sits here, file or directory alike. */
   isRepo: boolean;
@@ -60,9 +60,7 @@ async function readEntries(path: string): Promise<DirEntries | null> {
   try {
     const entries = await readdir(path, { withFileTypes: true });
     return {
-      dirs: entries
-        .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
-        .map((e) => e.name),
+      dirs: entries.filter((e) => e.isDirectory()).map((e) => e.name),
       isRepo: entries.some((e) => e.name === GIT_MARKER)
     };
   } catch {
