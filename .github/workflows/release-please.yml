@@ -6,7 +6,6 @@ on:
   push:
     branches:
       - main
-      - dev
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -38,12 +37,9 @@ jobs:
     name: Publish prerelease
     if: >-
       ${{
-        github.ref_name == 'dev'
-        || (
-          github.ref_name == 'main'
-          && !startsWith(github.event.head_commit.message, 'chore(main): release')
-          && !startsWith(github.event.head_commit.message, 'chore: release')
-        )
+        github.ref_name == 'main'
+        && !startsWith(github.event.head_commit.message, 'chore(main): release')
+        && !startsWith(github.event.head_commit.message, 'chore: release')
       }}
     permissions:
       contents: read
