@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.1](https://github.com/TitusKirch/forgemap/compare/v0.10.0...v0.10.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **deps:** update the npm dependencies to their latest major versions ([a0f6af3](https://github.com/TitusKirch/forgemap/commit/a0f6af3da1962b8831238d4c632e6840f913b496))
+* **deps:** update the npm dependencies to their latest minor versions ([0627d0f](https://github.com/TitusKirch/forgemap/commit/0627d0f1c851a6fda289f992c1b3f11b38366fae))
+
 ## [0.10.0](https://github.com/TitusKirch/forgemap/compare/v0.9.0...v0.10.0) (2026-09-10)
 
 
