@@ -53,7 +53,7 @@ ${name}() {
     if [ "$#" -eq 0 ]; then
       target=$(command forgemap pick) || return $?
     else
-      target=$(command forgemap path "$1") || return $?
+      target=$(command forgemap path --cloned "$1") || return $?
     fi
     [ -n "$target" ] && builtin cd "$target"
     return
@@ -74,7 +74,7 @@ function ${name} --description "forgemap with cd interception"
     if test (count $argv) -eq 0
       set target (command forgemap pick); or return $status
     else
-      set target (command forgemap path $argv[1]); or return $status
+      set target (command forgemap path --cloned $argv[1]); or return $status
     end
     test -n "$target"; and builtin cd $target
     return

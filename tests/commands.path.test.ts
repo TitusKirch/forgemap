@@ -20,7 +20,8 @@ const FIXTURE_CONFIG = `export default {
 const CLONED: Array<[string, string, string]> = [
   ['comGithub', 'kirchDev', 'gildmaster'],
   ['comGithub', 'kirchDev', 'laravel-pbac'],
-  ['comGithub', 'acme', 'gildhall']
+  ['comGithub', 'acme', 'gildhall'],
+  ['comGitlabAcme', 'tools', 'cli']
 ];
 
 async function setup(): Promise<string> {
@@ -110,6 +111,18 @@ describe('pathCommand', () => {
     const { out } = await runPath(dir, 'nobody/nothing');
     expect(out).toBe(join(dir, 'comGithub', 'nobody', 'nothing'));
   });
+  it('finds a slug cloned under another forge with --cloned', async () => {
+    const { out, exit } = await runPath(dir, 'tools/cli', '--cloned');
+    expect(out).toBe(join(dir, 'comGitlabAcme', 'tools', 'cli'));
+    expect(exit).toBeUndefined();
+  });
+
+  it('fails for a slug that is not cloned with --cloned', async () => {
+    const { out, exit } = await runPath(dir, 'nobody/nothing', '--cloned');
+    expect(out).toBe('');
+    expect(exit).toBe(1);
+  });
+
   it('falls back to the cwd when no config file is discovered', async () => {
     const bare = await mkdtemp(join(tmpdir(), 'forgemap-path-bare-'));
     await seedRepo(bare, 'comGithub', 'kirchDev', 'gildmaster');

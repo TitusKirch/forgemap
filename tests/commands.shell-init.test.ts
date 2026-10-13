@@ -51,7 +51,9 @@ describe('shellInitCommand', () => {
 
   it('resolves a cd argument through path so exact slugs bypass the picker', async () => {
     const out = await runShellInit({ shell: 'zsh', name: 'forgemap' });
-    expect(out).toContain('target=$(command forgemap path "$1") || return $?');
+    expect(out).toContain(
+      'target=$(command forgemap path --cloned "$1") || return $?'
+    );
     expect(out).not.toContain('command forgemap list "$1" --format path');
   });
 

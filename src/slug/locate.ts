@@ -4,14 +4,21 @@ import type { ForgeMapConfig } from '../config/schema.ts';
 import { matchRepos } from '../repos/match.ts';
 import { canPrompt, promptRepoChoice } from '../repos/picker.ts';
 import { type ScannedRepo, scanRepos } from '../repos/scan.ts';
-import { looksLikeSlug, parseSlug } from './parse.ts';
-import { resolveSlug } from './resolve.ts';
+import { looksLikeSlug, type ParsedSlug, parseSlug } from './parse.ts';
+import { type ResolvedSlug, resolveSlug } from './resolve.ts';
 
 export interface LocateOptions {
   config: ForgeMapConfig;
   configDir: string;
   /** Pre-scanned repos. Scanned on demand when omitted. */
   repos?: ScannedRepo[];
+  /**
+   * Only ever resolve to a repo that is actually cloned. A strict slug whose
+   * layout path holds no repo is then looked up by namespace and name across
+   * every forge — or across the named one, when the slug names a forge — so
+   * `cd` lands where the repo lives instead of on a path that doesn't exist.
+   */
+  cloned?: boolean;
 }
 
 export type LocateOutcome =
@@ -42,8 +49,12 @@ export async function locateRepo(
   const { config, configDir } = options;
 
   if (!input.trim() || looksLikeSlug(input)) {
-    const resolved = resolveSlug(parseSlug(input), { config, configDir });
-    return { kind: 'slug', localPath: resolved.localPath };
+    const parsed = parseSlug(input);
+    if (!options.cloned) {
+      const resolved = resolveSlug(parsed, { config, configDir });
+      return { kind: 'slug', localPath: resolved.localPath };
+    }
+    return locateClonedSlug(input, parsed, options);
   }
 
   const repos = options.repos ?? (await scanRepos({ config, configDir }));
@@ -58,6 +69,56 @@ export async function locateRepo(
     };
   }
   return { kind: 'ambiguous', query: input, candidates };
+}
+
+/**
+ * The `cloned` half of {@link locateRepo} for a strict slug: the layout path
+ * wins when it holds a repo, otherwise every cloned repo with the same
+ * namespace and name is a candidate. Without an explicit forge the slug isn't
+ * bound to the default one, so a namespace too deep for it is no error yet —
+ * it may well be cloned under a forge whose namespaces nest.
+ */
+async function locateClonedSlug(
+  input: string,
+  parsed: ParsedSlug,
+  options: LocateOptions
+): Promise<LocateOutcome> {
+  const { config, configDir } = options;
+  const explicit = Boolean(parsed.forgeName ?? parsed.host);
+
+  let resolved: ResolvedSlug | undefined;
+  try {
+    resolved = resolveSlug(parsed, { config, configDir });
+  } catch (error) {
+    if (explicit) throw error;
+  }
+
+  const repos = options.repos ?? (await scanRepos({ config, configDir }));
+  const exact =
+    resolved && repos.find((r) => r.localPath === resolved.localPath);
+  if (exact) return { kind: 'slug', localPath: exact.localPath };
+
+  const candidates = repos.filter(
+    (r) =>
+      r.owner === parsed.owner &&
+      r.repo === parsed.repo &&
+      (!explicit || r.forgeName === resolved?.forgeName)
+  );
+
+  if (candidates.length === 1) {
+    return {
+      kind: 'match',
+      localPath: candidates[0]!.localPath,
+      repo: candidates[0]!
+    };
+  }
+  if (candidates.length > 1) {
+    return { kind: 'ambiguous', query: input, candidates };
+  }
+  // Nothing cloned anywhere: surface the depth error the default forge raised,
+  // since that is the more useful explanation than "no match".
+  if (!resolved) resolveSlug(parsed, { config, configDir });
+  return { kind: 'none', query: input };
 }
 
 /**
@@ -83,7 +144,11 @@ export async function resolveRepoPath(
     case 'none':
       consola.error(`No cloned repo matches "${outcome.query}".`);
       process.stderr.write(
-        `${colors.dim('Pass an explicit <owner>/<repo> for a repo that is not cloned yet.')}\n`
+        `${colors.dim(
+          options.cloned
+            ? 'Clone it first with `forgemap clone <owner>/<repo>`.'
+            : 'Pass an explicit <owner>/<repo> for a repo that is not cloned yet.'
+        )}\n`
       );
       return null;
 

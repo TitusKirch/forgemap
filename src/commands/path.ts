@@ -15,6 +15,12 @@ export const pathCommand = defineCommand({
         'owner/repo, forge:owner/repo, full URL, or a fuzzy query matched against cloned repos',
       required: true
     },
+    cloned: {
+      type: 'boolean',
+      description:
+        'Only resolve to a cloned repo — a slug that is not cloned under its layout path is looked up across forges (used by `cd`)',
+      default: false
+    },
     config: {
       type: 'string',
       description: 'Path to forgemap.config.ts (overrides walk-up discovery)'
@@ -27,7 +33,8 @@ export const pathCommand = defineCommand({
       : loaded.cwd;
     const localPath = await resolveRepoPath(args.slug, {
       config: loaded.config,
-      configDir
+      configDir,
+      cloned: args.cloned
     });
     if (!localPath) {
       process.exitCode = 1;
