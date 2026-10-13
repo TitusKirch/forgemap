@@ -8,7 +8,8 @@ const config: ForgeMapConfig = {
   defaultForge: 'github',
   forges: {
     github: { type: 'github', host: 'github.com', dir: 'comGithub' },
-    work: { type: 'gitlab', host: 'gitlab.acme.com', dir: 'comGitlabAcme' }
+    work: { type: 'gitlab', host: 'gitlab.acme.com', dir: 'comGitlabAcme' },
+    selfhosted: { type: 'git', host: 'git.example.com', dir: 'comExample' }
   }
 };
 
@@ -28,7 +29,10 @@ const repos: ScannedRepo[] = [
   repo('github', 'kirchDev', 'gildmaster'),
   repo('github', 'kirchDev', 'laravel-pbac'),
   repo('github', 'acme', 'gildhall'),
-  repo('work', 'team', 'api')
+  repo('work', 'team', 'api'),
+  repo('work', 'group/sub', 'deep'),
+  repo('selfhosted', 'team', 'api'),
+  repo('selfhosted', 'tools', 'cli')
 ];
 
 const options = { config, configDir: '/cfg', repos };
@@ -117,5 +121,67 @@ describe('locateRepo', () => {
 
   it('throws on empty input', async () => {
     await expect(locateRepo('   ', options)).rejects.toThrow(/empty/);
+  });
+});
+
+describe('locateRepo with cloned', () => {
+  const cloned = { ...options, cloned: true };
+
+  it('keeps the layout path when the repo is cloned there', async () => {
+    const out = await locateRepo('kirchDev/laravel-pbac', cloned);
+    expect(out).toEqual({
+      kind: 'slug',
+      localPath: '/tmp/projects/comGithub/kirchDev/laravel-pbac'
+    });
+  });
+
+  it('finds a slug cloned under a non-default forge', async () => {
+    const out = await locateRepo('tools/cli', cloned);
+    expect(out.kind).toBe('match');
+    expect(out).toHaveProperty(
+      'localPath',
+      '/tmp/projects/comExample/tools/cli'
+    );
+  });
+
+  it('reports every forge that holds the same slug', async () => {
+    const out = await locateRepo('team/api', cloned);
+    expect(out.kind).toBe('ambiguous');
+    if (out.kind !== 'ambiguous') throw new Error('expected ambiguous');
+    expect(out.candidates.map((c) => c.forgeName).sort()).toEqual([
+      'selfhosted',
+      'work'
+    ]);
+  });
+
+  it('stays within the named forge', async () => {
+    const out = await locateRepo('work:team/api', cloned);
+    expect(out).toEqual({
+      kind: 'slug',
+      localPath: '/tmp/projects/comGitlabAcme/team/api'
+    });
+    await expect(locateRepo('github:tools/cli', cloned)).resolves.toEqual({
+      kind: 'none',
+      query: 'github:tools/cli'
+    });
+  });
+
+  it('finds a nested namespace the default forge would reject', async () => {
+    const out = await locateRepo('group/sub/deep', cloned);
+    expect(out).toHaveProperty(
+      'localPath',
+      '/tmp/projects/comGitlabAcme/group/sub/deep'
+    );
+  });
+
+  it('still reports the depth error when nothing is cloned', async () => {
+    await expect(locateRepo('foo/bar/baz', cloned)).rejects.toThrow(
+      /does not support nested namespaces/
+    );
+  });
+
+  it('reports no match for a slug that is not cloned anywhere', async () => {
+    const out = await locateRepo('someone/not-cloned', cloned);
+    expect(out).toEqual({ kind: 'none', query: 'someone/not-cloned' });
   });
 });

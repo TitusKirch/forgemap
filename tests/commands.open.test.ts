@@ -54,6 +54,7 @@ describe('openCommand', () => {
     await writeFile(join(dir, 'forgemap.config.ts'), FIXTURE_CONFIG, 'utf8');
     await seedRepo(dir, 'comGithub', 'kirchDev', 'gildmaster');
     await seedRepo(dir, 'comGithub', 'acme', 'gildhall');
+    await seedRepo(dir, 'comGithub', 'foo', 'bar');
     spawnMock.mockReset();
     spawnMock.mockReturnValue(fakeChild());
     originalDistro = process.env.WSL_DISTRO_NAME;
@@ -121,6 +122,16 @@ describe('openCommand', () => {
     expect(process.exitCode).toBe(1);
     process.exitCode = undefined;
   });
+  it('opens nothing for a slug that is not cloned', async () => {
+    delete process.env.WSL_DISTRO_NAME;
+    process.exitCode = undefined;
+    await runOpen(dir, 'nobody/nothing');
+
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined;
+  });
+
   it('uses open on macOS', async () => {
     delete process.env.WSL_DISTRO_NAME;
     const savedPlatform = process.platform;

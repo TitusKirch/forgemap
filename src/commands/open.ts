@@ -47,7 +47,8 @@ export const openCommand = defineCommand({
       : loaded.cwd;
     const localPath = await resolveRepoPath(args.slug, {
       config: loaded.config,
-      configDir
+      configDir,
+      cloned: true
     });
     if (!localPath) {
       process.exitCode = 1;
