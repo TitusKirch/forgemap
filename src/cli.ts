@@ -9,6 +9,7 @@ import { forgeCommand } from './commands/forge/index.ts';
 import { importCommand } from './commands/import.ts';
 import { infoCommand } from './commands/info.ts';
 import { listCommand } from './commands/list.ts';
+import { moveCommand } from './commands/move.ts';
 import { openCommand } from './commands/open.ts';
 import { pathCommand } from './commands/path.ts';
 import { pickCommand } from './commands/pick.ts';
@@ -35,6 +36,7 @@ export const rootCommand = defineCommand({
     import: importCommand,
     cleanup: cleanupCommand,
     delete: deleteCommand,
+    move: moveCommand,
     cd: cdCommand,
     path: pathCommand,
     open: openCommand,

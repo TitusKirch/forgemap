@@ -25,7 +25,7 @@ The namespace is **variable-depth** — one segment on GitHub, as many as GitLab
 
 Commands are registered in `src/cli.ts` — treat that file as the list, not this one:
 
-- **Acquire** — `clone`, `import` (adopt existing checkouts), `cleanup`, `delete`.
+- **Acquire** — `clone`, `import` (adopt existing checkouts), `cleanup`, `delete`, `move` (follow a renamed repo; `--agents` carries Claude Code / Codex session state along via `src/agents/`).
 - **Locate** — `cd`, `path`, `open`, `list`, `pick` (fuzzy picker, `fuse.js`).
 - **Inspect** — `status`, `sync`, `validate`.
 - **Plumbing** — `completion`, `shell-init`, `config` (`init` / `show`).

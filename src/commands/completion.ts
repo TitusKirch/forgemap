@@ -15,6 +15,7 @@ import { forgeCommand } from './forge/index.ts';
 import { importCommand } from './import.ts';
 import { infoCommand } from './info.ts';
 import { listCommand } from './list.ts';
+import { moveCommand } from './move.ts';
 import { openCommand } from './open.ts';
 import { pathCommand } from './path.ts';
 import { pickCommand } from './pick.ts';
@@ -25,7 +26,16 @@ import { validateCommand } from './validate.ts';
 
 // Commands whose depth-2 positional is a repo slug: these complete against the
 // live `forgemap list --format slug` output (the one dynamic value source).
-const SLUG_COMMANDS = ['clone', 'cd', 'path', 'open', 'list', 'pick', 'delete'];
+const SLUG_COMMANDS = [
+  'clone',
+  'cd',
+  'path',
+  'open',
+  'list',
+  'pick',
+  'delete',
+  'move'
+];
 
 // Fixed value sets a command validates internally. citty's arg metadata carries
 // no enum options for these — they are declared `type: 'string'` and checked in
@@ -111,6 +121,7 @@ function commandSpecs(): CommandSpec[] {
     ['import', importCommand],
     ['cleanup', cleanupCommand],
     ['delete', deleteCommand],
+    ['move', moveCommand],
     ['cd', cdCommand],
     ['path', pathCommand],
     ['open', openCommand],

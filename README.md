@@ -56,7 +56,7 @@ forgemap cd laravel                      # fuzzy match → jump in; bare `forgem
 `forgemap cd` resolves the slug, walks/picks across your cloned repos, and actually changes directory because the shell wrapper from `shell-init` intercepts it before the binary runs. Every other subcommand falls through to the real binary unchanged. Hacking on forgemap itself? See [CONTRIBUTING.md → Trying the CLI locally](CONTRIBUTING.md#trying-the-cli-locally) — covers `pnpm setup`, `pnpm link --global .` and the shell-wrapper source.
 
 <details>
-<summary><strong>All commands</strong> — clone, cd, path, list, pick, open, sync/status, import, cleanup, delete, validate, shell-init, config</summary>
+<summary><strong>All commands</strong> — clone, cd, path, list, pick, open, sync/status, import, cleanup, delete, move, validate, shell-init, config</summary>
 
 ### Clone & jump
 
@@ -162,6 +162,26 @@ forgemap delete foo/bar --include-dirty --include-unpushed --include-stashed   #
 ```
 
 The targeted counterpart to `cleanup`: same safety gates, no staleness requirement — for the repo you are done with *today*. It runs the identical checks (clean tree, nothing unpushed, no stashed work, remote still exists) and prints the local-only work at stake, naming the branches that carry unpushed commits and the stash count rather than just saying "unpushed". A gone or unreachable remote is a **hard stop that no flag overrides** — that local copy may be the only one left. After deleting, the repo is evicted from the scan cache and emptied owner directories are pruned.
+
+### Follow a renamed repo — `move`
+
+```bash
+forgemap move                         # the repo you are in → where its origin points
+forgemap move TitusKirch/mc-network   # a named repo (slug or fuzzy query)
+forgemap move --all --dry-run         # every repo whose folder disagrees with its origin
+forgemap move --all --yes             # …and move them, without the prompt
+forgemap move foo/bar --agents        # carry Claude Code and Codex sessions along
+forgemap move foo/bar --no-remote-check   # follow the local origin only, ask no forge
+```
+
+For a repo that changed name or owner. If you already repointed `origin` by hand, `move` puts the folder where that origin says. If you didn't, it asks the forge (`gh` / `glab`) whether the remote moved, then repoints `origin` and moves the folder in one go. An ssh remote stays ssh. Linked worktrees are repaired with `git worktree repair`, the scan cache follows along, and emptied owner directories are pruned. A target that already exists is never overwritten.
+
+Coding agents key their sessions by absolute path, so after a move `/resume` loses them. `--agents` carries that state along:
+
+- **Claude Code:** renames the session folders under `~/.claude/projects/` (worktrees below the repo included, sibling repos sharing a name prefix excluded) and moves the project entry in `~/.claude.json`. `CLAUDE_CONFIG_DIR` is honoured.
+- **Codex:** rewrites the `cwd` that `codex resume` filters by in the session transcripts and the `state_*.sqlite` thread index, and moves the trust entry in `config.toml`. `CODEX_HOME` is honoured.
+
+The message history inside transcripts is left as written. These are the tools' own undocumented formats, so close running sessions in that repo first and check with `--dry-run`.
 
 ### Preflight your config
 
