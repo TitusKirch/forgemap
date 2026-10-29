@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/TitusKirch/forgemap/compare/v0.10.2...v0.11.0) (2026-10-29)
+
+
+### Features
+
+* **move:** follow a renamed repo to where its origin points ([68b3957](https://github.com/TitusKirch/forgemap/commit/68b39577f3d9b8910da704e16be00af425c9eb72))
+
 ## [0.10.2](https://github.com/TitusKirch/forgemap/compare/v0.10.1...v0.10.2) (2026-10-13)
 
 
