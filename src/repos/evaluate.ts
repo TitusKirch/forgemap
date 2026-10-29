@@ -112,6 +112,13 @@ export async function evaluateRepo(
   };
 }
 
+/** What {@link classifyRemotes} needs of a repo: the forge to ask, the
+ *  identity to ask about, and the path its result is keyed by. */
+export type RemoteCandidate = Pick<
+  RepoEvaluation,
+  'repo' | 'origin' | 'owner' | 'name'
+>;
+
 /** Which local-work gates the caller has explicitly opted to override. */
 export interface GateOverrides {
   includeDirty: boolean;
@@ -185,11 +192,11 @@ export function remoteBlocker(
  * "safe to delete".
  */
 export async function classifyRemotes(
-  candidates: RepoEvaluation[]
+  candidates: RemoteCandidate[]
 ): Promise<Map<string, RemoteCheckResult>> {
   const groups = new Map<
     string,
-    { type: ForgeType; items: RepoEvaluation[] }
+    { type: ForgeType; items: RemoteCandidate[] }
   >();
   for (const c of candidates) {
     const { type, host } = c.repo.forge;
