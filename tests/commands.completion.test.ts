@@ -161,7 +161,7 @@ describe('completionCommand', () => {
     it('bash completes slugs after the alias', async () => {
       const out = await runCompletion({ shell: 'bash' });
 
-      expect(out).toContain('clone|delete|cd|path|open|list|ls|pick)');
+      expect(out).toContain('clone|delete|move|cd|path|open|list|ls|pick)');
     });
 
     it('zsh recognises the alias without suggesting it', async () => {
@@ -169,7 +169,7 @@ describe('completionCommand', () => {
 
       expect(out).toContain('ls) compadd -- --format');
       expect(out).toContain('ls:--format) compadd auto pretty path slug;');
-      expect(out).toContain('clone|delete|cd|path|open|list|ls|pick)');
+      expect(out).toContain('clone|delete|move|cd|path|open|list|ls|pick)');
       expect(out).not.toContain("'ls'");
     });
 
@@ -180,7 +180,7 @@ describe('completionCommand', () => {
         "complete -c forgemap -n '__fish_seen_subcommand_from list ls' -l format -x -a 'auto pretty path slug'"
       );
       expect(out).toContain(
-        'set -l slug_cmds "clone" "delete" "cd" "path" "open" "list" "ls" "pick"'
+        'set -l slug_cmds "clone" "delete" "move" "cd" "path" "open" "list" "ls" "pick"'
       );
       expect(out).not.toMatch(/__fish_use_subcommand' -a '[^']*\bls\b/);
     });
