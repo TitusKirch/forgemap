@@ -1,18 +1,4 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Agent instruction files
-
-`CLAUDE.md` and `AGENTS.md` are kept **byte-identical**. `CLAUDE.md` is what Claude Code reads; `AGENTS.md` is what vendor-neutral agent tools read — Codex, OpenCode, Cursor, Copilot, and whatever follows them. Two real files, deliberately not a symlink: not every tool resolves one.
-
-**After editing either file, copy it over the other — don't repeat the edit by hand:**
-
-```bash
-cp CLAUDE.md AGENTS.md   # or the reverse, whichever you just edited
-```
-
-Retyping a change is exactly how the two drift; one reflowed line or reworded clause is enough. `diff CLAUDE.md AGENTS.md` must print nothing. If it ever does, treat it as a defect and fix it by letting one file win wholesale — never by merging them.
+# forgemap
 
 ## What this is
 
@@ -65,7 +51,7 @@ Config is loaded by [c12](https://github.com/unjs/c12) from `forgemap.config.{ts
 This repo mirrors the kirchDev scaffold (`../scaffold/`). Treat that repo as the source of truth for tooling drift — when bumping configs, diff against it first.
 
 - **oxlint + oxfmt only.** No ESLint, no Prettier. Both are pinned exactly in `package.json` (no `^`) — bump them deliberately, and diff against the scaffold when you do.
-- **oxfmt formats Markdown too**, `CLAUDE.md` and `AGENTS.md` included — a doc edit can fail `pnpm format`. Run `pnpm exec oxfmt <file>` after editing prose.
+- **oxfmt formats Markdown too**, `AGENTS.md` included — a doc edit can fail `pnpm format`. Run `pnpm exec oxfmt <file>` after editing prose.
 - **Conventional Commits enforced.** Commitlint runs in the `commit-msg` hook. Use `feat:`, `fix:`, `chore:`, `docs:`, etc. Breaking changes: `feat!:` or `BREAKING CHANGE:` in the body.
 - **Husky hooks are required.** Don't `--no-verify` unless explicitly asked. `pre-commit` runs lint-staged (oxlint + oxfmt on staged files); `commit-msg` runs commitlint.
 - **`README.md` is excluded from oxfmt** (`.oxfmtrc.json` `ignorePatterns`). The kirchDev README house style relies on centered HTML blocks that the formatter would mangle — don't try to reformat it.
