@@ -250,7 +250,7 @@ export default defineForgeMapConfig({
 });
 ```
 
-The config is discovered by walking **up** from your current directory (so `forgemap cd` works from inside any clone), then falling back to `~/.config/forgemap/`. Override with `--config <path>` or the `FORGEMAP_CONFIG` env var.
+The config is discovered by walking **up** from your current directory (so `forgemap cd` works from inside any clone, not just the root), then falling back to a global `$XDG_CONFIG_HOME/forgemap/forgemap.config.*` (i.e. `~/.config/forgemap/`) so commands work from anywhere. Override with `--config <path>` or the `FORGEMAP_CONFIG` env var.
 
 > [!TIP]
 > Already have a directory full of repos? Skip writing this by hand — `forgemap import <path>` derives `root` + `forges` from the existing layout.
@@ -266,8 +266,6 @@ The config is discovered by walking **up** from your current directory (so `forg
 | `forges.<name>.host` | Hostname used to map full URLs and (for `git`) build the clone URL.                                       |
 | `forges.<name>.dir`  | Subdirectory under `root` where this forge's clones live.                                                 |
 | `forges.<name>.protocol` | `git`-type only. `'ssh'` (default) or `'https'`. Override per call with `--ssh` / `--https`.          |
-
-The config file is discovered by walking **up** from your current directory (so `forgemap cd` works from inside any clone, not just the root), then falling back to a global `$XDG_CONFIG_HOME/forgemap/forgemap.config.*` (i.e. `~/.config/forgemap/`) so commands work from anywhere. Override with `--config <path>` or the `FORGEMAP_CONFIG` env var.
 
 </details>
 
@@ -312,13 +310,10 @@ PRs welcome. Conventional Commits required (enforced via commitlint); Husky runs
 
 ```bash
 pnpm install
-pnpm test         # vitest
-pnpm typecheck    # tsc --noEmit
-pnpm check        # lint + format
-pnpm bench        # microbench scanRepos / cache hit / cache rebuild
+pnpm check && pnpm typecheck && pnpm test && pnpm build   # the full CI gate
 ```
 
-Tune the bench layout via env vars (`FORGEMAP_BENCH_FORGES`, `FORGEMAP_BENCH_OWNERS`, `FORGEMAP_BENCH_REPOS`, `FORGEMAP_BENCH_RUNS`).
+Every script is in [`package.json`](package.json); setup and local linking in [CONTRIBUTING.md](CONTRIBUTING.md). `pnpm bench` microbenchmarks scanRepos / cache hit / cache rebuild — tune its layout via env vars (`FORGEMAP_BENCH_FORGES`, `FORGEMAP_BENCH_OWNERS`, `FORGEMAP_BENCH_REPOS`, `FORGEMAP_BENCH_RUNS`).
 
 </details>
 
