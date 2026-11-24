@@ -56,7 +56,7 @@ forgemap cd laravel                      # fuzzy match → jump in; bare `forgem
 `forgemap cd` resolves the slug, walks/picks across your cloned repos, and actually changes directory because the shell wrapper from `shell-init` intercepts it before the binary runs. Every other subcommand falls through to the real binary unchanged. Hacking on forgemap itself? See [CONTRIBUTING.md → Trying the CLI locally](CONTRIBUTING.md#trying-the-cli-locally) — covers `pnpm setup`, `pnpm link --global .` and the shell-wrapper source.
 
 <details>
-<summary><strong>All commands</strong> — clone, cd, path, list, pick, open, sync/status, import, cleanup, delete, move, validate, shell-init, config</summary>
+<summary><strong>All commands</strong> — clone, cd, path, list, pick, open, sync/status, import, cleanup, delete, move, validate, shell-init, config, forge, info</summary>
 
 ### Clone & jump
 
@@ -138,7 +138,7 @@ forgemap import ~/projects --no-write-config # only report, don't touch the conf
 forgemap import ~/projects --format json
 ```
 
-For each repo `import` compares the folder's `<namespace…>/<repo>` against the git `origin`, checks whether the remote still exists or was moved/renamed (GitHub via a batched `gh` GraphQL query, other forges via `git ls-remote`), and derives `root` + one forge per server directory. Read-only by default — `--fix` is the only thing that touches the filesystem.
+For each repo `import` compares the folder's `<namespace…>/<repo>` against the git `origin`, checks whether the remote still exists or was moved/renamed (GitHub and GitLab via a batched `gh` / `glab` GraphQL query, plain `git` forges via `git ls-remote`), and derives `root` + one forge per server directory. Read-only by default — `--fix` is the only thing that touches the filesystem.
 
 ### Reclaim disk — `cleanup`
 
@@ -204,12 +204,18 @@ forgemap completion bash             # print the completion script for bash/zsh/
 
 `--install` appends a marker-guarded block to the right rc file (`~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`) — re-source it once and you're done. Tab-completion suggests every subcommand, and slugs for the commands that take one (`cd`, `clone`, `open`, …).
 
-### Inspect the config
+### Inspect and edit the config
 
 ```bash
 forgemap config init                 # write a starter forgemap.config.ts
 forgemap config show                 # print the resolved config + which file it came from
+forgemap forge add work --type gitlab --host gitlab.acme.com --dir comGitlabAcme
+forgemap forge edit work --host gitlab.example.com   # change one field
+forgemap forge remove work           # drop a forge from the config
+forgemap info                        # version, binary path, node and resolved config (--json)
 ```
+
+`forge add` prompts for anything you don't pass. With more than one config file on the walk-up path, `forge` asks which one to change (or take `--config <path>`).
 
 </details>
 
@@ -271,7 +277,7 @@ The config file is discovered by walking **up** from your current directory (so 
 ```
 <root>/
 └── <forge.dir>/
-    └── <owner>/
+    └── <namespace…>/   # one level on GitHub, nested GitLab subgroups
         └── <repo>/
 ```
 
