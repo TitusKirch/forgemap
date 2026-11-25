@@ -1,6 +1,8 @@
 export default {
   '*.md': (filenames) => {
-    const files = filenames.filter((f) => !f.endsWith('README.md'));
+    const files = filenames.filter(
+      (f) => !/(?:^|\/)(README|AGENTS)\.md$/.test(f)
+    );
     return files.length > 0 ? `pnpm exec oxfmt ${files.join(' ')}` : [];
   },
   '*.{json,jsonc,yml,yaml}': (filenames) => {

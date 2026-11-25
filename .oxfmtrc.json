@@ -9,6 +9,7 @@
     "**/node_modules/**",
     "CHANGELOG.md",
     "pnpm-lock.yaml",
-    "README.md"
+    "README.md",
+    "AGENTS.md"
   ]
 }
