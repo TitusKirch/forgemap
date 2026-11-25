@@ -31,7 +31,7 @@ Loaded by [c12](https://github.com/unjs/c12) (`src/config/load.ts`): `--config` 
 Tooling mirrors the kirchDev scaffold (`../scaffold/`) — diff against it before bumping configs.
 
 - **oxlint + oxfmt only**, both pinned exactly; bump deliberately.
-- **oxfmt formats Markdown** — run `pnpm exec oxfmt <file>` after editing prose. `README.md` and `AGENTS.md` are free-form prose and excluded (`.oxfmtrc.json`, `lint-staged.config.js`); don't reformat them.
+- **oxfmt formats Markdown** — run `pnpm exec oxfmt <file>` after editing prose. `README.md` and `AGENTS.md` are free-form prose and excluded (`.oxfmtrc.json`, `lint-staged.config.ts`); don't reformat them.
 - **Conventional Commits** via commitlint, breaking changes with `!` or `BREAKING CHANGE:`; husky hooks are required — no `--no-verify` unless asked.
 - **pnpm settings live in `pnpm-workspace.yaml`**, not `.npmrc`. Commit `pnpm-lock.yaml` changes.
 - **`minimumReleaseAge: 4320`** blocks fresh versions — override locally if urgent, never change the default.

@@ -1,4 +1,6 @@
-export default {
+import type { Configuration } from 'lint-staged';
+
+const config: Configuration = {
   '*.md': (filenames) => {
     const files = filenames.filter(
       (f) => !/(?:^|\/)(README|AGENTS)\.md$/.test(f)
@@ -14,3 +16,5 @@ export default {
     `pnpm exec oxfmt ${filenames.join(' ')}`
   ]
 };
+
+export default config;
