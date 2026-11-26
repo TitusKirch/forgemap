@@ -190,9 +190,6 @@ importers:
       defu:
         specifier: ^6.1.7
         version: 6.1.7
-      forgemap:
-        specifier: link:.
-        version: 'link:'
       fuse.js:
         specifier: ^7.5.0
         version: 7.5.0
@@ -218,6 +215,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^5.1.1
         version: 5.1.1(vitest@5.1.1)
+      forgemap:
+        specifier: link:.
+        version: 'link:'
       husky:
         specifier: ^9.1.7
         version: 9.1.7
