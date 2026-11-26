@@ -11,6 +11,7 @@ Node 24 / pnpm 12 CLI ([citty](https://github.com/unjs/citty)) managing a local 
 ## Commands and forges
 
 - `src/cli.ts` is the command list. `list` is listing and search in one — don't add a `search` command. `move --agents` carries Claude Code / Codex session state via `src/agents/`.
+- **`self-update` proposes, never owns.** `src/install/detect.ts` maps the resolved binary path to the package manager that installed forgemap; a layout it cannot place lands on `unknown` and blocks the run rather than being handed a guessed installer. `sudo` is never proposed. `src/install/registry.ts` holds the CLI's **only** HTTP call — reached from `self-update` alone, never from a command that just reads the disk.
 - Forges dispatch per `type` in `src/forges/registry.ts`:
   - `github` → `gh`; `gitlab` → `glab`, **required, never a silent git fallback**, every call sets `GITLAB_HOST=<forge.host>`.
   - `git` → plain `git clone`, ssh unless `protocol: 'https'`; the fallback for GitLab-shaped remotes without `glab`.

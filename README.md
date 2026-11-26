@@ -53,10 +53,12 @@ forgemap clone kirchDev/laravel-pbac     # any slug form works: owner/repo, forg
 forgemap cd laravel                      # fuzzy match → jump in; bare `forgemap cd` opens a picker
 ```
 
+Already installed? `forgemap self-update` checks the registry, tells you which package manager owns the install, and asks before running its update command.
+
 `forgemap cd` resolves the slug, walks/picks across your cloned repos, and actually changes directory because the shell wrapper from `shell-init` intercepts it before the binary runs. Every other subcommand falls through to the real binary unchanged. Hacking on forgemap itself? See [CONTRIBUTING.md → Trying the CLI locally](CONTRIBUTING.md#trying-the-cli-locally) — covers `pnpm setup`, `pnpm link --global .` and the shell-wrapper source.
 
 <details>
-<summary><strong>All commands</strong> — clone, cd, path, list, pick, open, sync/status, import, cleanup, delete, move, validate, shell-init, config, forge, info</summary>
+<summary><strong>All commands</strong> — clone, cd, path, list, pick, open, sync/status, import, cleanup, delete, move, validate, shell-init, config, forge, info, self-update</summary>
 
 ### Clone & jump
 
@@ -216,6 +218,22 @@ forgemap info                        # version, binary path, node and resolved c
 ```
 
 `forge add` prompts for anything you don't pass. With more than one config file on the walk-up path, `forge` asks which one to change (or take `--config <path>`).
+
+### Update forgemap itself — `self-update`
+
+```bash
+forgemap self-update                 # version check, then type "yes" to run the update command
+forgemap self-update --check         # only report (exit 1 when outdated) — for a cron or a status line
+forgemap self-update --print         # print just the command for this install; makes no network call
+forgemap self-update --json          # machine-readable: current, latest, install kind, command, blockers
+forgemap self-update --yes           # non-interactive (scripts)
+```
+
+forgemap does not own its own installation, so it never updates itself behind your back: it works out **which package manager put it there** — from the resolved binary path, the same way `forgemap info` does — and proposes that manager's command (`npm i -g`, `pnpm add -g`, `bun add -g`, `yarn global add`, `volta install`). Nothing runs until you type `yes`.
+
+Five cases print the command and deliberately refuse to run it: a **linked dev build** (update it with git), a copy in an **npx/dlx cache** (thrown away after the run), a **project dependency** (bump it in that project's `package.json`), an **unrecognised layout**, and a target directory that **isn't writable** — a `sudo` command is never proposed, let alone run.
+
+This is the only subcommand that talks to the network outside of git: it asks `registry.npmjs.org` for the `latest` dist-tag, under a 5 s timeout, and only when you run it — there is no background update check. `FORGEMAP_REGISTRY` points it at a mirror, `FORGEMAP_REGISTRY_TIMEOUT_MS` changes the timeout.
 
 </details>
 
