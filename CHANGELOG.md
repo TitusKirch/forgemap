@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.0](https://github.com/TitusKirch/forgemap/compare/v0.11.0...v0.12.0) (2026-11-26)
+
+
+### Features
+
+* **self-update:** update forgemap through the manager that installed it ([246bcdb](https://github.com/TitusKirch/forgemap/commit/246bcdb748ad4c313d3c37b363e8e412a2f3a4fb))
+
+
+### Bug Fixes
+
+* **package:** move the self-link to devDependencies so npm can install ([d7bb7ad](https://github.com/TitusKirch/forgemap/commit/d7bb7ad5b859db5308774fd6e2d7069764769ddc))
+
 ## [0.11.0](https://github.com/TitusKirch/forgemap/compare/v0.10.2...v0.11.0) (2026-10-29)
 
 
