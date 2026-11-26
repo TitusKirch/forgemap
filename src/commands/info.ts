@@ -1,31 +1,21 @@
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { defineCommand } from 'citty';
 import { colors } from 'consola/utils';
-import { dirname, join, resolve } from 'pathe';
+import { dirname } from 'pathe';
 import { type ConfigSource, loadForgeMapConfig } from '../config/load.ts';
+import {
+  type BinaryInfo,
+  type BuildInfo,
+  type BuildKind,
+  detectBuild,
+  findPackageRoot,
+  resolveBinary
+} from '../install/detect.ts';
 import { resolveRoot } from '../utils/path.ts';
 
 // Injected at build time by vite's `define` (see vite.config.ts), sourced from
 // package.json's `version`. Read it the same way `cli.ts` does rather than
 // re-inventing a drift-prone literal.
 declare const __APP_VERSION__: string;
-
-/** `linked` = runs from a git work tree; `release` = an installed package. */
-type BuildKind = 'linked' | 'release' | 'unknown';
-
-interface BuildInfo {
-  kind: BuildKind;
-  /** Directory of the nearest `forgemap` package.json above the binary. */
-  packageRoot: string | null;
-  reason: string;
-}
-
-interface BinaryInfo {
-  /** The path as invoked (may be a shim / symlink). */
-  invoked: string | null;
-  /** The real executed file, symlinks resolved. */
-  resolved: string | null;
-}
 
 interface ForgeInfo {
   name: string;
@@ -48,84 +38,6 @@ interface Info {
   binary: BinaryInfo;
   node: string;
   config: ConfigInfo;
-}
-
-/** Resolve the real executed file behind any shim or symlink. */
-function resolveBinary(entry: string | undefined): BinaryInfo {
-  if (!entry) return { invoked: null, resolved: null };
-  try {
-    return { invoked: entry, resolved: realpathSync(entry) };
-  } catch {
-    // The file vanished (or is unreadable) — report the invoked path as-is
-    // rather than failing; `info` describes, it never judges.
-    return { invoked: entry, resolved: entry };
-  }
-}
-
-/** Walk up from `start` to the nearest package.json, returning its dir + name. */
-function findPackageRoot(
-  start: string
-): { dir: string; name: string | undefined } | null {
-  let dir = resolve(start);
-  for (;;) {
-    const pkgPath = join(dir, 'package.json');
-    if (existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as {
-          name?: string;
-        };
-        return { dir, name: pkg.name };
-      } catch {
-        return { dir, name: undefined };
-      }
-    }
-    const parent = dirname(dir);
-    if (parent === dir) return null;
-    dir = parent;
-  }
-}
-
-/**
- * Distinguish a linked/dev build from an installed release: the resolved binary
- * lives inside a git work tree whose package.json is named `forgemap`. An
- * installed package has the same package.json but no `.git` beside it. When the
- * binary or a `forgemap` package.json cannot be located, report `unknown`
- * rather than guessing.
- */
-function detectBuild(resolved: string | null): BuildInfo {
-  if (!resolved) {
-    return {
-      kind: 'unknown',
-      packageRoot: null,
-      reason: 'binary path could not be resolved'
-    };
-  }
-  const pkg = findPackageRoot(dirname(resolved));
-  if (!pkg) {
-    return {
-      kind: 'unknown',
-      packageRoot: null,
-      reason: 'no package.json found above the binary'
-    };
-  }
-  if (pkg.name !== 'forgemap') {
-    return {
-      kind: 'unknown',
-      packageRoot: pkg.dir,
-      reason: `nearest package.json is "${pkg.name ?? 'unnamed'}", not forgemap`
-    };
-  }
-  // Check `.git` only at the forgemap package root, never above it: an installed
-  // package under a consumer's node_modules would otherwise inherit that repo's
-  // .git and be mislabelled as linked.
-  const inGitTree = existsSync(join(pkg.dir, '.git'));
-  return {
-    kind: inGitTree ? 'linked' : 'release',
-    packageRoot: pkg.dir,
-    reason: inGitTree
-      ? 'runs from a git work tree named forgemap'
-      : 'installed forgemap package (no git work tree beside it)'
-  };
 }
 
 async function gatherConfig(
