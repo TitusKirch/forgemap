@@ -19,6 +19,7 @@ import { moveCommand } from './move.ts';
 import { openCommand } from './open.ts';
 import { pathCommand } from './path.ts';
 import { pickCommand } from './pick.ts';
+import { selfUpdateCommand } from './self-update.ts';
 import { shellInitCommand } from './shell-init.ts';
 import { statusCommand } from './status.ts';
 import { syncCommand } from './sync.ts';
@@ -131,6 +132,7 @@ function commandSpecs(): CommandSpec[] {
     ['sync', syncCommand],
     ['validate', validateCommand],
     ['info', infoCommand],
+    ['self-update', selfUpdateCommand],
     ['completion', completionCommand],
     ['shell-init', shellInitCommand],
     ['config', configCommand],

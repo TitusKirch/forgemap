@@ -13,6 +13,7 @@ import { moveCommand } from './commands/move.ts';
 import { openCommand } from './commands/open.ts';
 import { pathCommand } from './commands/path.ts';
 import { pickCommand } from './commands/pick.ts';
+import { selfUpdateCommand } from './commands/self-update.ts';
 import { shellInitCommand } from './commands/shell-init.ts';
 import { statusCommand } from './commands/status.ts';
 import { syncCommand } from './commands/sync.ts';
@@ -46,6 +47,7 @@ export const rootCommand = defineCommand({
     sync: syncCommand,
     validate: validateCommand,
     info: infoCommand,
+    'self-update': selfUpdateCommand,
     completion: completionCommand,
     'shell-init': shellInitCommand,
     config: configCommand,
