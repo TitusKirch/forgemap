@@ -1,103 +1,44 @@
 # Contributing to forgemap
 
-Thanks for taking the time to contribute! 🛠️ This document covers what you need to get a PR landed.
-
-## Code of Conduct
-
 This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you agree to uphold it.
 
 ## Reporting issues
 
-- **Bugs**: open a [Bug report](https://github.com/TitusKirch/forgemap/issues/new?template=bug_report.yml) with a minimal reproduction if at all possible.
-- **Feature requests**: open a [Feature request](https://github.com/TitusKirch/forgemap/issues/new?template=feature_request.yml).
-- **Questions & ideas, or something that might be a bug**: start in the [Discord forum](https://discord.kirch.dev/) — that's where the low-friction, unconfirmed stuff lives.
-- **Security vulnerabilities**: **do not** open a public issue. Follow [SECURITY.md](SECURITY.md).
+- **Questions, ideas, possible bugs**: the [Discord forum](https://discord.kirch.dev/).
+- **Confirmed bugs**: a [Bug report](https://github.com/TitusKirch/forgemap/issues/new?template=bug_report.yml), with a minimal reproduction.
+- **Features**: a [Feature request](https://github.com/TitusKirch/forgemap/issues/new?template=feature_request.yml).
+- **Security vulnerabilities**: **never** a public issue — follow [SECURITY.md](SECURITY.md).
 
 ## Development setup
 
-Requirements:
+Requires Node **24+**, pnpm **12** and `git`; `gh` / `glab` for the forges that wrap them. After cloning, `pnpm install` wires the husky hooks.
 
-- Node **24+** and **pnpm 11**
-- `gh` (GitHub CLI) on `PATH` for commands that wrap it
-- `git`
-
-Clone and install:
-
-```bash
-git clone https://github.com/TitusKirch/forgemap.git
-cd forgemap
-pnpm install   # wires husky hooks
-```
+The gate CI runs is `pnpm check && pnpm typecheck && pnpm test && pnpm build` — keep it green before you push; `pnpm check:fix` fixes lint and format.
 
 ### Trying the CLI locally
 
-To run your in-development build as the global `forgemap` command (so
-`forgemap cd …` from `shell-init` actually finds the binary):
-
 ```bash
-# 1. Make sure pnpm's global bin is on PATH (one-time setup).
-#    pnpm setup writes the export to your shell rc.
-pnpm setup            # add --force if pnpm complains about an existing block
-source ~/.zshrc       # or open a new shell
-
-# 2. Build once, then link this repo as the global `forgemap`.
+pnpm setup && source ~/.zshrc   # once: global bin on PATH (--force on an existing block)
 pnpm build
-pnpm link --global .  # pnpm 11 requires the `.` — links the current dir
-
-# 3. Source the shell wrapper (per shell or via .zshrc).
-eval "$(forgemap shell-init)"          # zsh/bash
-# forgemap shell-init fish | source    # fish
-
-# 4. Verify.
-which forgemap         # → /root/.local/share/pnpm/forgemap (or similar)
-forgemap --help
-forgemap cd <slug>     # actually cds in this shell
+pnpm link --global .            # the `.` is required
+eval "$(forgemap shell-init)"   # fish: forgemap shell-init fish | source
 ```
 
-> [!NOTE]
-> `pnpm link --global .` will reinstall `node_modules` from the lockfile.
-> That's expected — it's pnpm switching the install strategy when a
-> package is registered globally. Existing work isn't lost.
-
-Re-running `pnpm build` after a code change updates the binary
-in-place; no re-link needed.
-
-To unlink later: `pnpm uninstall -g forgemap`.
-
-## Running the suite
-
-| Command          | What it does                              |
-| :--------------- | :---------------------------------------- |
-| `pnpm lint`      | oxlint across the repo.                   |
-| `pnpm format`    | oxfmt check across JS / JSON / YAML / MD. |
-| `pnpm check`     | Runs `lint` and `format`.                 |
-| `pnpm check:fix` | Auto-fix lint + format issues.            |
-
-The same commands run in CI — keep them green before you push.
+`pnpm link` reinstalls `node_modules` from the lockfile — expected. After a code change, `pnpm build` is enough. Unlink with `pnpm uninstall -g forgemap`.
 
 ## Branching & PRs
 
-1. **Don't push directly to `main`.** Branch off `main` for every change.
-2. **Conventional Commits required.** Commitlint enforces this on every commit. Examples:
-   - `feat: add forgemap path resolver`
-   - `fix(clone): respect existing target directory`
-   - `docs(readme): clarify config file location`
-   - `chore(deps): bump oxlint to 1.67`
-   - Breaking changes: `feat!: ...` or include `BREAKING CHANGE:` in the body.
-3. **One concern per PR.** Smaller PRs land faster.
-4. **Tests are required for code changes.** Bug fixes need a regression test, features need coverage of the happy path and at least one edge case.
-5. **Update relevant docs.** README and inline help text if you change a default.
+1. Branch off `dev` and open the PR against `dev`. Never push to `main`.
+2. Conventional Commits, enforced by commitlint. Mark a breaking change with `!` or a `BREAKING CHANGE:` footer.
+3. One concern per PR.
+4. Code changes need tests — a regression test for a fix, the happy path plus an edge case for a feature.
+5. Changing a default? Update the README and the command's help text.
 
-## Style & quality gates
+Husky lints and formats staged files on commit; if a hook fails, fix it and commit again — **no `--no-verify`** unless explicitly asked.
 
-Husky runs the following on `git commit`:
+## AI agents
 
-- **JS / JSON / YAML / MD** → `oxlint` + `oxfmt`
-
-If a hook fails, fix the issue and commit again. **Don't `--no-verify`** unless I explicitly ask.
-
-> [!TIP]
-> Run `pnpm check:fix` before opening a PR — saves a CI cycle.
+Agent guidance lives in [`AGENTS.md`](AGENTS.md). Claude Code (v2.1.277+) loads it only while no `CLAUDE.md` or `CLAUDE.local.md` sits in or above the working directory — don't add a `CLAUDE.md`.
 
 ## License
 

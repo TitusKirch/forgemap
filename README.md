@@ -53,10 +53,12 @@ forgemap clone kirchDev/laravel-pbac     # any slug form works: owner/repo, forg
 forgemap cd laravel                      # fuzzy match → jump in; bare `forgemap cd` opens a picker
 ```
 
+Already installed? `forgemap self-update` checks the registry, tells you which package manager owns the install, and asks before running its update command.
+
 `forgemap cd` resolves the slug, walks/picks across your cloned repos, and actually changes directory because the shell wrapper from `shell-init` intercepts it before the binary runs. Every other subcommand falls through to the real binary unchanged. Hacking on forgemap itself? See [CONTRIBUTING.md → Trying the CLI locally](CONTRIBUTING.md#trying-the-cli-locally) — covers `pnpm setup`, `pnpm link --global .` and the shell-wrapper source.
 
 <details>
-<summary><strong>All commands</strong> — clone, cd, path, list, pick, open, sync/status, import, cleanup, delete, move, validate, shell-init, config</summary>
+<summary><strong>All commands</strong> — clone, cd, path, list, pick, open, sync/status, import, cleanup, delete, move, validate, shell-init, config, forge, info, self-update</summary>
 
 ### Clone & jump
 
@@ -138,7 +140,7 @@ forgemap import ~/projects --no-write-config # only report, don't touch the conf
 forgemap import ~/projects --format json
 ```
 
-For each repo `import` compares the folder's `<namespace…>/<repo>` against the git `origin`, checks whether the remote still exists or was moved/renamed (GitHub via a batched `gh` GraphQL query, other forges via `git ls-remote`), and derives `root` + one forge per server directory. Read-only by default — `--fix` is the only thing that touches the filesystem.
+For each repo `import` compares the folder's `<namespace…>/<repo>` against the git `origin`, checks whether the remote still exists or was moved/renamed (GitHub and GitLab via a batched `gh` / `glab` GraphQL query, plain `git` forges via `git ls-remote`), and derives `root` + one forge per server directory. Read-only by default — `--fix` is the only thing that touches the filesystem.
 
 ### Reclaim disk — `cleanup`
 
@@ -204,12 +206,34 @@ forgemap completion bash             # print the completion script for bash/zsh/
 
 `--install` appends a marker-guarded block to the right rc file (`~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`) — re-source it once and you're done. Tab-completion suggests every subcommand, and slugs for the commands that take one (`cd`, `clone`, `open`, …).
 
-### Inspect the config
+### Inspect and edit the config
 
 ```bash
 forgemap config init                 # write a starter forgemap.config.ts
 forgemap config show                 # print the resolved config + which file it came from
+forgemap forge add work --type gitlab --host gitlab.acme.com --dir comGitlabAcme
+forgemap forge edit work --host gitlab.example.com   # change one field
+forgemap forge remove work           # drop a forge from the config
+forgemap info                        # version, binary path, node and resolved config (--json)
 ```
+
+`forge add` prompts for anything you don't pass. With more than one config file on the walk-up path, `forge` asks which one to change (or take `--config <path>`).
+
+### Update forgemap itself — `self-update`
+
+```bash
+forgemap self-update                 # version check, then type "yes" to run the update command
+forgemap self-update --check         # only report (exit 1 when outdated) — for a cron or a status line
+forgemap self-update --print         # print just the command for this install; makes no network call
+forgemap self-update --json          # machine-readable: current, latest, install kind, command, blockers
+forgemap self-update --yes           # non-interactive (scripts)
+```
+
+forgemap does not own its own installation, so it never updates itself behind your back: it works out **which package manager put it there** — from the resolved binary path, the same way `forgemap info` does — and proposes that manager's command (`npm i -g`, `pnpm add -g`, `bun add -g`, `yarn global add`, `volta install`). Nothing runs until you type `yes`.
+
+Five cases print the command and deliberately refuse to run it: a **linked dev build** (update it with git), a copy in an **npx/dlx cache** (thrown away after the run), a **project dependency** (bump it in that project's `package.json`), an **unrecognised layout**, and a target directory that **isn't writable** — a `sudo` command is never proposed, let alone run.
+
+This is the only subcommand that talks to the network outside of git: it asks `registry.npmjs.org` for the `latest` dist-tag, under a 5 s timeout, and only when you run it — there is no background update check. `FORGEMAP_REGISTRY` points it at a mirror, `FORGEMAP_REGISTRY_TIMEOUT_MS` changes the timeout.
 
 </details>
 
@@ -244,7 +268,7 @@ export default defineForgeMapConfig({
 });
 ```
 
-The config is discovered by walking **up** from your current directory (so `forgemap cd` works from inside any clone), then falling back to `~/.config/forgemap/`. Override with `--config <path>` or the `FORGEMAP_CONFIG` env var.
+The config is discovered by walking **up** from your current directory (so `forgemap cd` works from inside any clone, not just the root), then falling back to a global `$XDG_CONFIG_HOME/forgemap/forgemap.config.*` (i.e. `~/.config/forgemap/`) so commands work from anywhere. Override with `--config <path>` or the `FORGEMAP_CONFIG` env var.
 
 > [!TIP]
 > Already have a directory full of repos? Skip writing this by hand — `forgemap import <path>` derives `root` + `forges` from the existing layout.
@@ -261,8 +285,6 @@ The config is discovered by walking **up** from your current directory (so `forg
 | `forges.<name>.dir`  | Subdirectory under `root` where this forge's clones live.                                                 |
 | `forges.<name>.protocol` | `git`-type only. `'ssh'` (default) or `'https'`. Override per call with `--ssh` / `--https`.          |
 
-The config file is discovered by walking **up** from your current directory (so `forgemap cd` works from inside any clone, not just the root), then falling back to a global `$XDG_CONFIG_HOME/forgemap/forgemap.config.*` (i.e. `~/.config/forgemap/`) so commands work from anywhere. Override with `--config <path>` or the `FORGEMAP_CONFIG` env var.
-
 </details>
 
 <details>
@@ -271,7 +293,7 @@ The config file is discovered by walking **up** from your current directory (so 
 ```
 <root>/
 └── <forge.dir>/
-    └── <owner>/
+    └── <namespace…>/   # one level on GitHub, nested GitLab subgroups
         └── <repo>/
 ```
 
@@ -306,13 +328,10 @@ PRs welcome. Conventional Commits required (enforced via commitlint); Husky runs
 
 ```bash
 pnpm install
-pnpm test         # vitest
-pnpm typecheck    # tsc --noEmit
-pnpm check        # lint + format
-pnpm bench        # microbench scanRepos / cache hit / cache rebuild
+pnpm check && pnpm typecheck && pnpm test && pnpm build   # the full CI gate
 ```
 
-Tune the bench layout via env vars (`FORGEMAP_BENCH_FORGES`, `FORGEMAP_BENCH_OWNERS`, `FORGEMAP_BENCH_REPOS`, `FORGEMAP_BENCH_RUNS`).
+Every script is in [`package.json`](package.json); setup and local linking in [CONTRIBUTING.md](CONTRIBUTING.md). `pnpm bench` microbenchmarks scanRepos / cache hit / cache rebuild — tune its layout via env vars (`FORGEMAP_BENCH_FORGES`, `FORGEMAP_BENCH_OWNERS`, `FORGEMAP_BENCH_REPOS`, `FORGEMAP_BENCH_RUNS`).
 
 </details>
 

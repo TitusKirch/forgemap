@@ -84,6 +84,9 @@ describe('completionCommand', () => {
       expect(out).toContain('clone) flags="--ssh --https --config"');
       expect(out).toContain('list) flags="--format --filter --limit --config"');
       expect(out).toContain('completion) flags="--install"');
+      expect(out).toContain(
+        'self-update) flags="--check --print --json --yes"'
+      );
       // clone's flags do not leak the unrelated --format flag.
       expect(out).not.toContain(
         'clone) flags="--ssh --https --config --format'
